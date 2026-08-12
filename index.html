@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Cyclospora Dashboard</title>
+
+  <ttps://cdn.jsdelivr.net/npm/chart.jsscript>
+
+  <style>
+    body{
+      font-family: Arial;
+      margin:40px;
+    }
+
+    canvas{
+      max-width:1200px;
+    }
+  </style>
+</head>
+
+<body>
+
+<h1>Indiana Cyclospora Cases</h1>
+
+<canvas id="chart"></canvas>
+
+<script>
+
+const data = {
+  labels: ["Aug 7","Aug 10","Aug 11"],
+  datasets: [{
+    label: "Allen County",
+    data: [449,471,478],
+    borderColor: "blue"
+  }]
+};
+
+new Chart(
+  document.getElementById("chart"),
+  {
+    type:'line',
+    data:data
+  }
+);
+
+</script>
+
+</body>
+</html>
