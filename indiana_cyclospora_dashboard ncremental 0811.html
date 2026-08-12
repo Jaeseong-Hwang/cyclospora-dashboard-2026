@@ -1,0 +1,2290 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Indiana Cyclosporiasis Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<style>
+  :root{
+    --bg: #F5F4F0;
+    --surface: #FFFFFF;
+    --border: #E1DFD6;
+    --ink: #1E2A24;
+    --ink-soft: #5B6A62;
+    --ink-mute: #8B968F;
+    --teal-deep: #0F4F45;
+    --teal: #1B7A6A;
+    --accent: #C4622A;
+    --accent-soft: #F3D9C6;
+    --elkhart: #2B6CB0;
+  }
+  *{ box-sizing: border-box; }
+  body{
+    margin:0; padding: 32px 40px 56px;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  }
+  .header{ margin-bottom: 24px; }
+  .eyebrow{
+    font-size: 12px; letter-spacing: 0.14em; text-transform: uppercase;
+    color: var(--teal-deep); font-weight: 700; margin: 0 0 6px;
+  }
+  h1{ font-size: 26px; font-weight: 700; margin: 0 0 6px; color: var(--ink); }
+  .subtitle{ font-size: 14px; color: var(--ink-soft); margin: 0; max-width: 780px; line-height: 1.5; }
+
+  .kpi-row{
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px;
+    margin: 24px 0 16px;
+  }
+  .kpi{
+    background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+    padding: 16px 18px;
+  }
+  .kpi-label{ font-size: 11.5px; color: var(--ink-mute); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 6px; }
+  .kpi-value{ font-size: 24px; font-weight: 700; color: var(--teal-deep); }
+  .kpi-sub{ font-size: 12px; color: var(--ink-soft); margin-top: 2px; }
+
+  .elkhart-kpi-row{
+    display: grid; grid-template-columns: 1fr 1fr; gap: 14px;
+    margin: 0 0 28px;
+  }
+  .kpi-elkhart{
+    background: var(--surface); border: 2px solid var(--elkhart); border-radius: 10px;
+    padding: 16px 18px;
+  }
+  .kpi-elkhart .kpi-label{ color: var(--elkhart); }
+  .kpi-elkhart .kpi-value{ color: var(--elkhart); }
+  .kpi-elkhart .rank-badge{
+    display: inline-block; background: var(--elkhart); color: #fff;
+    font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 999px;
+    margin-left: 8px; vertical-align: middle;
+  }
+
+  .layout{
+    display: grid; grid-template-columns: minmax(0,1.55fr) minmax(320px, 0.9fr);
+    gap: 20px; align-items: start;
+  }
+
+  .panel{
+    background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+    padding: 18px 20px;
+  }
+  .panel-title{
+    font-size: 14px; font-weight: 700; color: var(--ink); margin: 0 0 4px;
+    display:flex; align-items:center; justify-content:space-between;
+  }
+  .panel-sub{ font-size: 12px; color: var(--ink-mute); margin: 0 0 14px; display:flex; align-items:center; justify-content:space-between; }
+
+  .toggle-group{ display: flex; gap: 6px; }
+  .toggle-btn{
+    font-size: 12px; padding: 6px 12px; border-radius: 999px; border: 1px solid var(--border);
+    background: var(--bg); color: var(--ink-soft); cursor: pointer; font-weight: 600;
+    transition: all .12s ease;
+  }
+  .toggle-btn.active{ background: var(--teal-deep); color: #fff; border-color: var(--teal-deep); }
+  .toggle-btn:hover:not(.active){ border-color: var(--teal); color: var(--teal-deep); }
+
+  .map-wrap{ position: relative; width: 100%; }
+  #mapSvg{ width: 100%; height: 560px; display:block; }
+  #mapSvg path.county{
+    stroke: #FFFFFF; stroke-width: 1; cursor: pointer;
+    transition: filter .1s ease;
+    vector-effect: non-scaling-stroke;
+  }
+  #mapSvg path.county:hover{ filter: brightness(0.92); }
+  #mapSvg path.highlight{
+    fill: none; stroke: var(--accent); stroke-width: 3.5; pointer-events: none;
+    vector-effect: non-scaling-stroke;
+  }
+
+  .tooltip{
+    position: absolute; pointer-events: none; background: #1E2A24; color: #fff;
+    font-size: 12px; padding: 8px 10px; border-radius: 6px; line-height: 1.5;
+    transform: translate(-50%, -110%); white-space: nowrap; opacity: 0; transition: opacity .08s ease;
+    z-index: 10; box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+  }
+  .tooltip b{ color: #fff; }
+  .tooltip .tt-label{ color: #B9C4BE; }
+
+  .legend{
+    display:flex; align-items:center; gap: 6px; margin-top: 12px; font-size: 10.5px; color: var(--ink-mute);
+  }
+  .legend-bar{
+    flex: 1; height: 8px; border-radius: 4px;
+    background: linear-gradient(to right, #EAF3F0, #BFDDD3, #6FAE9B, #2E7D68, #0F4F45);
+  }
+
+  .reset-link{
+    font-size: 12px; color: var(--teal); cursor: pointer; font-weight: 600; text-decoration: none;
+    display:inline-flex; align-items:center; gap:4px; white-space: nowrap;
+  }
+  .reset-link:hover{ color: var(--accent); }
+
+  .tabs{ display:flex; gap: 4px; margin-bottom: 12px; border-bottom: 1px solid var(--border); }
+  .tab{
+    font-size: 12.5px; font-weight: 700; padding: 8px 4px; margin-right: 18px;
+    color: var(--ink-mute); cursor: pointer; border-bottom: 2px solid transparent;
+  }
+  .tab.active{ color: var(--teal-deep); border-color: var(--accent); }
+
+  table.rank-table{ width:100%; border-collapse: collapse; font-size: 13px; }
+  table.rank-table th{
+    text-align: left; font-size: 10.5px; color: var(--ink-mute); text-transform: uppercase;
+    letter-spacing: .04em; padding: 4px 6px 8px; border-bottom: 1px solid var(--border); font-weight: 700;
+  }
+  table.rank-table th.num, table.rank-table td.num{ text-align: right; }
+  table.rank-table td{ padding: 8px 6px; border-bottom: 1px solid var(--border); }
+  table.rank-table tr.rank-row{ cursor: pointer; transition: background .1s ease; }
+  table.rank-table tr.rank-row:hover{ background: var(--bg); }
+  table.rank-table tr.rank-row.selected{ background: var(--accent-soft); }
+  .rank-num{
+    display:inline-flex; align-items:center; justify-content:center;
+    width: 20px; height: 20px; border-radius: 50%; background: var(--bg); color: var(--ink-soft);
+    font-size: 11px; font-weight: 700; margin-right: 6px;
+  }
+  tr.rank-row.selected .rank-num{ background: var(--accent); color: #fff; }
+  .county-name{ font-weight: 600; }
+
+  .tab-content{ display:none; }
+  .tab-content.active{ display:block; }
+
+  .footer-note{
+    font-size: 11.5px; color: var(--ink-mute); margin-top: 22px; line-height: 1.6;
+  }
+
+  .chart-panel{ margin-top: 20px; }
+  .chart-wrap{ position: relative; height: 320px; width: 100%; }
+  .compare-chips{
+    display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; min-height: 28px;
+  }
+  .chip{
+    display: inline-flex; align-items: center; gap: 6px;
+    font-size: 12px; font-weight: 600; padding: 4px 10px; border-radius: 999px;
+    background: var(--bg); border: 1px solid var(--border); color: var(--ink);
+  }
+  .chip.elkhart{ background: #EBF4FF; border-color: var(--elkhart); color: var(--elkhart); }
+  .chip .chip-x{
+    cursor: pointer; opacity: 0.6; font-size: 14px; line-height: 1;
+  }
+  .chip .chip-x:hover{ opacity: 1; }
+  .chip-hint{ font-size: 12px; color: var(--ink-mute); align-self: center; }
+
+
+  @media (max-width: 980px){
+    .layout{ grid-template-columns: 1fr; }
+    .kpi-row{ grid-template-columns: repeat(2,1fr); }
+    .elkhart-kpi-row{ grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <p class="eyebrow">Indiana Department of Health &middot; Surveillance data</p>
+  <h1>Cyclosporiasis Dashboard by County</h1>
+  <p class="subtitle">Reported cases and cases per 100,000 population across Indiana's 92 counties.
+    Data through <strong id="dataAsOf">—</strong>. Hover the map for details, click a county (map or ranking) to highlight and add it to the trend comparison.
+    Toggle between <strong>Cumulative</strong> (total cases to date) and <strong>Daily New</strong> (incremental cases that day).</p>
+  <div class="toggle-group" id="modeToggle" style="margin-top:14px;">
+    <button class="toggle-btn active" data-mode="cumulative">Cumulative</button>
+    <button class="toggle-btn" data-mode="incremental">Daily New</button>
+  </div>
+</div>
+
+<div class="kpi-row" id="kpiRow"></div>
+
+<div class="elkhart-kpi-row" id="elkhartKpiRow"></div>
+
+<div class="layout">
+  <div class="panel">
+    <div class="panel-title">
+      <span id="mapPanelTitle">County Map — Cumulative</span>
+      <div class="toggle-group" id="metricToggle">
+        <button class="toggle-btn active" data-metric="percapita">Per 100k</button>
+        <button class="toggle-btn" data-metric="cases">Cases</button>
+      </div>
+    </div>
+    <p class="panel-sub">
+      <span>Color scale: <span id="metricLabel">Cases per 100,000 population</span></span>
+      <span class="reset-link" id="resetZoom">Reset view</span>
+    </p>
+    <div class="map-wrap">
+      <svg id="mapSvg" viewBox="0 0 2546.31 3988.97" xmlns="http://www.w3.org/2000/svg"></svg>
+      <div class="tooltip" id="tooltip"></div>
+    </div>
+    <div class="legend">
+      <span id="legendMin">0</span>
+      <div class="legend-bar"></div>
+      <span id="legendMax">0</span>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="tabs">
+      <div class="tab active" data-tab="cases" id="tabLabelCases">Top 10 by Cases</div>
+      <div class="tab" data-tab="percapita" id="tabLabelPerCapita">Top 10 per 100k</div>
+    </div>
+
+    <div class="tab-content active" id="tab-cases">
+      <table class="rank-table">
+        <thead><tr><th>County</th><th class="num">Population</th><th class="num" id="thCases">Cases</th></tr></thead>
+        <tbody id="rankBodyCases"></tbody>
+      </table>
+    </div>
+    <div class="tab-content" id="tab-percapita">
+      <table class="rank-table">
+        <thead><tr><th>County</th><th class="num" id="thPerCases">Cases</th><th class="num" id="thPerCapita">Per 100k</th></tr></thead>
+        <tbody id="rankBodyPerCapita"></tbody>
+      </table>
+    </div>
+
+    <p class="footer-note" id="footerNote">
+      Allen and Marion post high raw case counts largely because of their large populations. Smaller counties
+      like Steuben, Noble, DeKalb, and Harrison show much higher rates per capita, suggesting possible localized
+      exposure clusters. Elkhart is highlighted below for ongoing local monitoring.
+    </p>
+  </div>
+</div>
+
+<div class="panel chart-panel">
+  <div class="panel-title">
+    <span id="chartPanelTitle">Case Trend — Elkhart vs Selected Counties (Cumulative)</span>
+    <div style="display:flex; align-items:center; gap:10px;">
+      <div class="toggle-group" id="chartMetricToggle">
+        <button class="toggle-btn active" data-chart-metric="cases">Cases</button>
+        <button class="toggle-btn" data-chart-metric="percapita">Per 100k</button>
+      </div>
+      <button class="toggle-btn" id="resetTrendBtn" title="Clear comparisons and show Elkhart only">Refresh</button>
+    </div>
+  </div>
+  <p class="panel-sub">
+    <span id="chartSubNote">Elkhart is always shown. Click any county on the map or ranking list to add/remove it for comparison. Chart shows cumulative totals.</span>
+  </p>
+  <div class="compare-chips" id="compareChips"></div>
+  <div class="chart-wrap">
+    <canvas id="trendChart"></canvas>
+  </div>
+</div>
+
+<script>
+/* =============================================================================
+   DATA UPDATE SECTION
+   ---------------------------------------------------------------------------
+   1. Append a new object to CASES_HISTORY when you receive updated CUMULATIVE
+      case counts (totals to date for each county).
+   2. Only list counties with cases > 0. Missing counties = 0.
+   3. date: "YYYY-MM-DD"  |  label: short name shown on chart axis
+   4. COUNTY_META (population / FIPS) and COUNTY_PATHS (map) almost never change.
+   5. Incremental (daily new) cases are computed automatically by differencing
+      consecutive cumulative snapshots. Map, KPIs, rankings, and trend all
+      update when you add a new cumulative entry — no other changes needed.
+   ============================================================================= */
+
+const CASES_HISTORY = [
+  {
+    date: "2026-08-04",
+    label: "Aug 4",
+    cases: {
+  "Marion": 108,
+  "Lake": 16,
+  "Allen": 290,
+  "Hamilton": 25,
+  "St. Joseph": 53,
+  "Elkhart": 74,
+  "Hendricks": 19,
+  "Tippecanoe": 7,
+  "Vanderburgh": 10,
+  "Johnson": 4,
+  "Porter": 3,
+  "Monroe": 8,
+  "Madison": 9,
+  "Clark": 46,
+  "Delaware": 10,
+  "LaPorte": 2,
+  "Vigo": 6,
+  "Hancock": 25,
+  "Bartholomew": 4,
+  "Howard": 4,
+  "Boone": 6,
+  "Floyd": 42,
+  "Kosciusko": 67,
+  "Morgan": 18,
+  "Warrick": 1,
+  "Grant": 1,
+  "Wayne": 8,
+  "Dearborn": 1,
+  "Henry": 7,
+  "Noble": 85,
+  "Jackson": 12,
+  "Marshall": 12,
+  "Shelby": 4,
+  "Lawrence": 3,
+  "DeKalb": 77,
+  "Dubois": 2,
+  "LaGrange": 15,
+  "Harrison": 53,
+  "Montgomery": 1,
+  "Putnam": 2,
+  "Cass": 2,
+  "Huntington": 14,
+  "Adams": 3,
+  "Knox": 1,
+  "Whitley": 20,
+  "Steuben": 92,
+  "Jefferson": 8,
+  "Clinton": 1,
+  "Greene": 1,
+  "Wabash": 9,
+  "Ripley": 4,
+  "Wells": 3,
+  "Washington": 7,
+  "Jennings": 4,
+  "Decatur": 1,
+  "Clay": 1,
+  "Scott": 3,
+  "White": 1,
+  "Randolph": 2,
+  "Owen": 4,
+  "Sullivan": 1,
+  "Fulton": 3,
+  "Jay": 1,
+  "Orange": 4,
+  "Perry": 2,
+  "Fountain": 1,
+  "Rush": 2,
+  "Brown": 2,
+  "Blackford": 2,
+  "Crawford": 7,
+  "Switzerland": 2,
+  "Martin": 1
+}
+  },
+  {
+    date: "2026-08-05",
+    label: "Aug 5",
+    cases: {
+  "Adams": 4,
+  "Allen": 399,
+  "Bartholomew": 4,
+  "Blackford": 2,
+  "Boone": 7,
+  "Brown": 2,
+  "Cass": 3,
+  "Clark": 50,
+  "Clay": 1,
+  "Clinton": 1,
+  "Crawford": 10,
+  "Dearborn": 1,
+  "Decatur": 1,
+  "DeKalb": 117,
+  "Delaware": 15,
+  "Dubois": 2,
+  "Elkhart": 85,
+  "Floyd": 45,
+  "Fountain": 1,
+  "Fulton": 3,
+  "Grant": 2,
+  "Greene": 1,
+  "Hamilton": 28,
+  "Hancock": 28,
+  "Harrison": 66,
+  "Hendricks": 22,
+  "Henry": 7,
+  "Howard": 6,
+  "Huntington": 22,
+  "Jackson": 14,
+  "Jay": 1,
+  "Jefferson": 8,
+  "Jennings": 5,
+  "Johnson": 6,
+  "Knox": 1,
+  "Kosciusko": 86,
+  "LaGrange": 17,
+  "Lake": 18,
+  "LaPorte": 2,
+  "Lawrence": 3,
+  "Madison": 10,
+  "Marion": 124,
+  "Marshall": 13,
+  "Martin": 1,
+  "Monroe": 8,
+  "Montgomery": 1,
+  "Morgan": 19,
+  "Noble": 123,
+  "Orange": 5,
+  "Owen": 4,
+  "Perry": 2,
+  "Porter": 4,
+  "Putnam": 3,
+  "Randolph": 2,
+  "Ripley": 4,
+  "Rush": 2,
+  "Scott": 5,
+  "Shelby": 5,
+  "St. Joseph": 64,
+  "Steuben": 119,
+  "Sullivan": 1,
+  "Switzerland": 3,
+  "Tippecanoe": 8,
+  "Union": 1,
+  "Vanderburgh": 11,
+  "Vigo": 7,
+  "Wabash": 11,
+  "Warrick": 1,
+  "Washington": 8,
+  "Wayne": 10,
+  "Wells": 3,
+  "White": 1,
+  "Whitley": 26
+}
+  },
+{
+  date: "2026-08-06",
+  label: "Aug 6",
+  cases: {
+    "Adams": 5,
+    "Allen": 414,
+    "Bartholomew": 4,
+    "Blackford": 2,
+    "Boone": 7,
+    "Brown": 2,
+    "Cass": 3,
+    "Clark": 52,
+    "Clay": 1,
+    "Clinton": 1,
+    "Crawford": 10,
+    "Dearborn": 1,
+    "Decatur": 1,
+    "DeKalb": 119,
+    "Delaware": 16,
+    "Dubois": 2,
+    "Elkhart": 87,
+    "Floyd": 46,
+    "Fountain": 1,
+    "Fulton": 3,
+    "Grant": 2,
+    "Greene": 1,
+    "Hamilton": 28,
+    "Hancock": 29,
+    "Harrison": 72,
+    "Hendricks": 24,
+    "Henry": 7,
+    "Howard": 6,
+    "Huntington": 22,
+    "Jackson": 14,
+    "Jay": 1,
+    "Jefferson": 8,
+    "Jennings": 5,
+    "Johnson": 6,
+    "Knox": 1,
+    "Kosciusko": 89,
+    "LaGrange": 19,
+    "Lake": 19,
+    "LaPorte": 2,
+    "Lawrence": 3,
+    "Madison": 10,
+    "Marion": 126,
+    "Marshall": 13,
+    "Martin": 1,
+    "Monroe": 8,
+    "Montgomery": 1,
+    "Morgan": 19,
+    "Noble": 127,
+    "Orange": 5,
+    "Owen": 4,
+    "Perry": 2,
+    "Porter": 4,
+    "Putnam": 3,
+    "Randolph": 2,
+    "Ripley": 4,
+    "Rush": 2,
+    "Scott": 5,
+    "Shelby": 5,
+    "St. Joseph": 65,
+    "Steuben": 121,
+    "Sullivan": 1,
+    "Switzerland": 4,
+    "Tippecanoe": 8,
+    "Union": 1,
+    "Vanderburgh": 11,
+    "Vigo": 7,
+    "Wabash": 11,
+    "Warrick": 1,
+    "Washington": 8,
+    "Wayne": 10,
+    "Wells": 3,
+    "White": 1,
+    "Whitley": 26
+  }
+},
+{
+  date: "2026-08-07",
+  label: "Aug 7",
+  cases: {
+    "Adams": 7,
+    "Allen": 449,
+    "Bartholomew": 4,
+    "Blackford": 2,
+    "Boone": 7,
+    "Brown": 2,
+    "Cass": 3,
+    "Clark": 53,
+    "Clay": 1,
+    "Clinton": 1,
+    "Crawford": 11,
+    "Dearborn": 1,
+    "Decatur": 1,
+    "DeKalb": 127,
+    "Delaware": 16,
+    "Dubois": 3,
+    "Elkhart": 89,
+    "Floyd": 46,
+    "Fountain": 1,
+    "Fulton": 3,
+    "Grant": 2,
+    "Greene": 2,
+    "Hamilton": 28,
+    "Hancock": 31,
+    "Harrison": 72,
+    "Hendricks": 24,
+    "Henry": 7,
+    "Howard": 6,
+    "Huntington": 23,
+    "Jackson": 15,
+    "Jasper": 2,
+    "Jay": 1,
+    "Jefferson": 8,
+    "Jennings": 5,
+    "Johnson": 6,
+    "Knox": 1,
+    "Kosciusko": 94,
+    "LaGrange": 20,
+    "Lake": 19,
+    "LaPorte": 2,
+    "Lawrence": 3,
+    "Madison": 10,
+    "Marion": 131,
+    "Marshall": 13,
+    "Martin": 1,
+    "Monroe": 8,
+    "Montgomery": 1,
+    "Morgan": 19,
+    "Noble": 131,
+    "Orange": 6,
+    "Owen": 4,
+    "Perry": 2,
+    "Porter": 4,
+    "Putnam": 3,
+    "Randolph": 2,
+    "Ripley": 4,
+    "Rush": 2,
+    "Scott": 5,
+    "Shelby": 5,
+    "St. Joseph": 65,
+    "Steuben": 125,
+    "Sullivan": 1,
+    "Switzerland": 4,
+    "Tippecanoe": 9,
+    "Union": 1,
+    "Vanderburgh": 11,
+    "Vigo": 7,
+    "Wabash": 11,
+    "Warrick": 1,
+    "Washington": 8,
+    "Wayne": 10,
+    "Wells": 3,
+    "White": 1,
+    "Whitley": 26
+  }
+},
+{
+  date: "2026-08-10",
+  label: "Aug 10",
+  cases: {
+    "Adams": 7,
+    "Allen": 471,
+    "Bartholomew": 4,
+    "Blackford": 2,
+    "Boone": 7,
+    "Brown": 2,
+    "Cass": 3,
+    "Clark": 54,
+    "Clay": 1,
+    "Clinton": 2,
+    "Crawford": 11,
+    "Dearborn": 2,
+    "Decatur": 1,
+    "DeKalb": 134,
+    "Delaware": 17,
+    "Dubois": 3,
+    "Elkhart": 90,
+    "Floyd": 46,
+    "Fountain": 1,
+    "Fulton": 3,
+    "Grant": 2,
+    "Greene": 2,
+    "Hamilton": 28,
+    "Hancock": 32,
+    "Harrison": 73,
+    "Hendricks": 24,
+    "Henry": 7,
+    "Howard": 7,
+    "Huntington": 25,
+    "Jackson": 15,
+    "Jasper": 3,
+    "Jay": 1,
+    "Jefferson": 8,
+    "Jennings": 5,
+    "Johnson": 8,
+    "Knox": 1,
+    "Kosciusko": 100,
+    "LaGrange": 20,
+    "Lake": 19,
+    "LaPorte": 2,
+    "Lawrence": 3,
+    "Madison": 10,
+    "Marion": 132,
+    "Marshall": 14,
+    "Martin": 1,
+    "Monroe": 8,
+    "Montgomery": 1,
+    "Morgan": 19,
+    "Noble": 135,
+    "Orange": 6,
+    "Owen": 4,
+    "Perry": 2,
+    "Porter": 5,
+    "Putnam": 3,
+    "Randolph": 2,
+    "Ripley": 4,
+    "Rush": 2,
+    "Scott": 5,
+    "Shelby": 5,
+    "St. Joseph": 66,
+    "Steuben": 127,
+    "Sullivan": 1,
+    "Switzerland": 4,
+    "Tippecanoe": 9,
+    "Union": 1,
+    "Vanderburgh": 11,
+    "Vigo": 7,
+    "Wabash": 11,
+    "Warrick": 1,
+    "Washington": 8,
+    "Wayne": 10,
+    "Wells": 4,
+    "White": 1,
+    "Whitley": 28
+  }
+},
+{
+  date: "2026-08-11",
+  label: "Aug 11",
+  cases: {
+    "Adams": 7,
+    "Allen": 478,
+    "Bartholomew": 4,
+    "Blackford": 2,
+    "Boone": 7,
+    "Brown": 2,
+    "Cass": 3,
+    "Clark": 56,
+    "Clay": 1,
+    "Clinton": 2,
+    "Crawford": 11,
+    "Dearborn": 2,
+    "Decatur": 1,
+    "DeKalb": 135,
+    "Delaware": 19,
+    "Dubois": 3,
+    "Elkhart": 97,
+    "Floyd": 46,
+    "Fountain": 1,
+    "Fulton": 3,
+    "Grant": 3,
+    "Greene": 2,
+    "Hamilton": 28,
+    "Hancock": 33,
+    "Harrison": 73,
+    "Hendricks": 24,
+    "Henry": 7,
+    "Howard": 7,
+    "Huntington": 25,
+    "Jackson": 15,
+    "Jasper": 3,
+    "Jay": 1,
+    "Jefferson": 8,
+    "Jennings": 6,
+    "Johnson": 8,
+    "Knox": 1,
+    "Kosciusko": 105,
+    "LaGrange": 20,
+    "Lake": 19,
+    "LaPorte": 2,
+    "Lawrence": 3,
+    "Madison": 10,
+    "Marion": 134,
+    "Marshall": 15,
+    "Martin": 1,
+    "Monroe": 8,
+    "Montgomery": 1,
+    "Morgan": 19,
+    "Noble": 135,
+    "Orange": 6,
+    "Owen": 4,
+    "Perry": 2,
+    "Porter": 5,
+    "Putnam": 3,
+    "Randolph": 2,
+    "Ripley": 4,
+    "Rush": 2,
+    "Scott": 5,
+    "Shelby": 5,
+    "St. Joseph": 69,
+    "Steuben": 127,
+    "Sullivan": 1,
+    "Switzerland": 4,
+    "Tippecanoe": 9,
+    "Union": 1,
+    "Vanderburgh": 11,
+    "Vigo": 9,
+    "Wabash": 11,
+    "Warrick": 1,
+    "Washington": 8,
+    "Wayne": 10,
+    "Wells": 4,
+    "White": 1,
+    "Whitley": 29
+  }
+}
+];
+
+const COUNTY_META = [
+  {
+    "County": "Marion",
+    "Population": 994179,
+    "FIPS": "18097",
+    "BBox": [
+      -86.32815239299998,
+      39.63218836500005,
+      -85.93807626799997,
+      39.92750084700003
+    ]
+  },
+  {
+    "County": "Lake",
+    "Population": 506727,
+    "FIPS": "18089",
+    "BBox": [
+      -87.52675685999998,
+      41.162126553000064,
+      -87.21860185399998,
+      41.76067623700004
+    ]
+  },
+  {
+    "County": "Allen",
+    "Population": 405564,
+    "FIPS": "18003",
+    "BBox": [
+      -85.33832962499997,
+      40.916454798000075,
+      -84.80290855899995,
+      41.27095310000004
+    ]
+  },
+  {
+    "County": "Hamilton",
+    "Population": 394387,
+    "FIPS": "18057",
+    "BBox": [
+      -86.24274308899999,
+      39.92612793200004,
+      -85.86190979599996,
+      40.21895247400005
+    ]
+  },
+  {
+    "County": "St. Joseph",
+    "Population": 272786,
+    "FIPS": "18141",
+    "BBox": [
+      -86.526687,
+      41.43288700100004,
+      -86.059442,
+      41.76065100100004
+    ]
+  },
+  {
+    "County": "Elkhart",
+    "Population": 209352,
+    "FIPS": "18039",
+    "BBox": [
+      -86.06254786599999,
+      41.434912240000074,
+      -85.65348679899995,
+      41.76049642600003
+    ]
+  },
+  {
+    "County": "Hendricks",
+    "Population": 196256,
+    "FIPS": "18063",
+    "BBox": [
+      -86.69530300099996,
+      39.60071564300006,
+      -86.32600454399994,
+      39.92419949300006
+    ]
+  },
+  {
+    "County": "Tippecanoe",
+    "Population": 191002,
+    "FIPS": "18157",
+    "BBox": [
+      -87.09526968199998,
+      40.214368998000054,
+      -86.69461982599995,
+      40.56297480200004
+    ]
+  },
+  {
+    "County": "Vanderburgh",
+    "Population": 182850,
+    "FIPS": "18163",
+    "BBox": [
+      -87.70040022999996,
+      37.82604490400007,
+      -87.45015253099996,
+      38.16842836400008
+    ]
+  },
+  {
+    "County": "Johnson",
+    "Population": 177501,
+    "FIPS": "18081",
+    "BBox": [
+      -86.25156702599998,
+      39.341780741000036,
+      -85.95087068799995,
+      39.63844176400005
+    ]
+  },
+  {
+    "County": "Porter",
+    "Population": 176678,
+    "FIPS": "18127",
+    "BBox": [
+      -87.22385776399994,
+      41.219845907000035,
+      -86.92963887399998,
+      41.76067623700004
+    ]
+  },
+  {
+    "County": "Monroe",
+    "Population": 143858,
+    "FIPS": "18105",
+    "BBox": [
+      -86.68581,
+      38.990835007000044,
+      -86.31768660599994,
+      39.35570504000003
+    ]
+  },
+  {
+    "County": "Madison",
+    "Population": 136604,
+    "FIPS": "18095",
+    "BBox": [
+      -85.86359520299999,
+      39.94352090700005,
+      -85.57554034499998,
+      40.37979630900003
+    ]
+  },
+  {
+    "County": "Clark",
+    "Population": 133139,
+    "FIPS": "18019",
+    "BBox": [
+      -85.994664,
+      38.267173177000075,
+      -85.41502729499996,
+      38.606729
+    ]
+  },
+  {
+    "County": "Delaware",
+    "Population": 113460,
+    "FIPS": "18035",
+    "BBox": [
+      -85.57891483099996,
+      40.07635008600005,
+      -85.21434099599998,
+      40.37951687000003
+    ]
+  },
+  {
+    "County": "LaPorte",
+    "Population": 111239,
+    "FIPS": "18091",
+    "BBox": [
+      -86.93274968599997,
+      41.23725242800003,
+      -86.486192,
+      41.76047192900006
+    ]
+  },
+  {
+    "County": "Vigo",
+    "Population": 106826,
+    "FIPS": "18167",
+    "BBox": [
+      -87.61011000099995,
+      39.25909100100006,
+      -87.19910753499994,
+      39.60827499900006
+    ]
+  },
+  {
+    "County": "Hancock",
+    "Population": 93061,
+    "FIPS": "18059",
+    "BBox": [
+      -85.95402618099996,
+      39.69715704600003,
+      -85.57622786499996,
+      39.945861225000044
+    ]
+  },
+  {
+    "County": "Bartholomew",
+    "Population": 86516,
+    "FIPS": "18005",
+    "BBox": [
+      -86.08568073599997,
+      39.03583281300007,
+      -85.68453020199996,
+      39.35025200100006
+    ]
+  },
+  {
+    "County": "Howard",
+    "Population": 83790,
+    "FIPS": "18067",
+    "BBox": [
+      -86.37566797499994,
+      40.37364352800006,
+      -85.86213934399996,
+      40.56553302200007
+    ]
+  },
+  {
+    "County": "Boone",
+    "Population": 82738,
+    "FIPS": "18011",
+    "BBox": [
+      -86.69589100099995,
+      39.92242007200008,
+      -86.24073844099996,
+      40.180678502000035
+    ]
+  },
+  {
+    "County": "Floyd",
+    "Population": 82507,
+    "FIPS": "18043",
+    "BBox": [
+      -86.03322482899995,
+      38.18074085000006,
+      -85.76100747599997,
+      38.419065001000035
+    ]
+  },
+  {
+    "County": "Kosciusko",
+    "Population": 81015,
+    "FIPS": "18085",
+    "BBox": [
+      -86.07755603299995,
+      41.041887,
+      -85.65120579599994,
+      41.437025119000054
+    ]
+  },
+  {
+    "County": "Morgan",
+    "Population": 75889,
+    "FIPS": "18109",
+    "BBox": [
+      -86.68753300099996,
+      39.33824515900005,
+      -86.25010277699994,
+      39.63371093600006
+    ]
+  },
+  {
+    "County": "Warrick",
+    "Population": 67285,
+    "FIPS": "18173",
+    "BBox": [
+      -87.47340433899996,
+      37.87803188300006,
+      -87.017437,
+      38.24612040100004
+    ]
+  },
+  {
+    "County": "Grant",
+    "Population": 66812,
+    "FIPS": "18053",
+    "BBox": [
+      -85.86475692799996,
+      40.378380434000064,
+      -85.44442186899994,
+      40.65373177400005
+    ]
+  },
+  {
+    "County": "Wayne",
+    "Population": 66002,
+    "FIPS": "18177",
+    "BBox": [
+      -85.22136371499994,
+      39.71477317800003,
+      -84.81077822199995,
+      40.006350001000044
+    ]
+  },
+  {
+    "County": "Dearborn",
+    "Population": 51504,
+    "FIPS": "18029",
+    "BBox": [
+      -85.13250093599999,
+      38.93545304500003,
+      -84.81943438999997,
+      39.30720800100005
+    ]
+  },
+  {
+    "County": "Henry",
+    "Population": 49253,
+    "FIPS": "18065",
+    "BBox": [
+      -85.59684599799994,
+      39.78638733100007,
+      -85.20027744999999,
+      40.077301704000035
+    ]
+  },
+  {
+    "County": "Noble",
+    "Population": 47928,
+    "FIPS": "18113",
+    "BBox": [
+      -85.65475544799995,
+      41.26382645000007,
+      -85.19235896799995,
+      41.526558409000074
+    ]
+  },
+  {
+    "County": "Jackson",
+    "Population": 47304,
+    "FIPS": "18071",
+    "BBox": [
+      -86.31803635299997,
+      38.724851,
+      -85.795397,
+      39.07084397400007
+    ]
+  },
+  {
+    "County": "Marshall",
+    "Population": 46660,
+    "FIPS": "18099",
+    "BBox": [
+      -86.46697800199996,
+      41.17143957500008,
+      -86.05421062999994,
+      41.479405
+    ]
+  },
+  {
+    "County": "Shelby",
+    "Population": 46151,
+    "FIPS": "18145",
+    "BBox": [
+      -85.95317673699998,
+      39.34737055200003,
+      -85.62908,
+      39.69895562200003
+    ]
+  },
+  {
+    "County": "Lawrence",
+    "Population": 45906,
+    "FIPS": "18093",
+    "BBox": [
+      -86.68357182899996,
+      38.68667170200007,
+      -86.27467766899997,
+      38.99252636600005
+    ]
+  },
+  {
+    "County": "DeKalb",
+    "Population": 44732,
+    "FIPS": "18033",
+    "BBox": [
+      -85.19406465599997,
+      41.26421444500005,
+      -84.80357560899995,
+      41.53035964900005
+    ]
+  },
+  {
+    "County": "Dubois",
+    "Population": 44090,
+    "FIPS": "18037",
+    "BBox": [
+      -87.073209,
+      38.20292100100005,
+      -86.679385,
+      38.52645941600008
+    ]
+  },
+  {
+    "County": "LaGrange",
+    "Population": 41492,
+    "FIPS": "18087",
+    "BBox": [
+      -85.65990819499996,
+      41.52335478100008,
+      -85.19406275299997,
+      41.75963206500006
+    ]
+  },
+  {
+    "County": "Harrison",
+    "Population": 40688,
+    "FIPS": "18061",
+    "BBox": [
+      -86.32943695599994,
+      37.958130340000025,
+      -85.89924636599994,
+      38.42272348800003
+    ]
+  },
+  {
+    "County": "Montgomery",
+    "Population": 38998,
+    "FIPS": "18107",
+    "BBox": [
+      -87.092385773,
+      39.864839,
+      -86.695106,
+      40.214927
+    ]
+  },
+  {
+    "County": "Putnam",
+    "Population": 37994,
+    "FIPS": "18133",
+    "BBox": [
+      -87.01474,
+      39.470179,
+      -86.641795,
+      39.86665783500007
+    ]
+  },
+  {
+    "County": "Cass",
+    "Population": 37743,
+    "FIPS": "18017",
+    "BBox": [
+      -86.58173600899994,
+      40.56132807600005,
+      -86.16508832099998,
+      40.91088689800006
+    ]
+  },
+  {
+    "County": "Huntington",
+    "Population": 37483,
+    "FIPS": "18069",
+    "BBox": [
+      -85.64382119799996,
+      40.65312705400004,
+      -85.33461225799994,
+      41.005256977000045
+    ]
+  },
+  {
+    "County": "Adams",
+    "Population": 36758,
+    "FIPS": "18001",
+    "BBox": [
+      -85.07388131799996,
+      40.56842491000003,
+      -84.80223112399995,
+      40.922573843000066
+    ]
+  },
+  {
+    "County": "Knox",
+    "Population": 35547,
+    "FIPS": "18083",
+    "BBox": [
+      -87.75669,
+      38.413874,
+      -87.09076299899994,
+      38.90787400100004
+    ]
+  },
+  {
+    "County": "Whitley",
+    "Population": 35160,
+    "FIPS": "18183",
+    "BBox": [
+      -85.68667448599996,
+      41.001821654000025,
+      -85.30775034799996,
+      41.29537133900004
+    ]
+  },
+  {
+    "County": "Steuben",
+    "Population": 34810,
+    "FIPS": "18151",
+    "BBox": [
+      -85.19662762599995,
+      41.52654166600007,
+      -84.80469498799994,
+      41.76015140700008
+    ]
+  },
+  {
+    "County": "Miami",
+    "Population": 34509,
+    "FIPS": "18103",
+    "BBox": [
+      -86.169065,
+      40.562655807000056,
+      -85.86364654,
+      40.99921500100004
+    ]
+  },
+  {
+    "County": "Daviess",
+    "Population": 34287,
+    "FIPS": "18027",
+    "BBox": [
+      -87.279958,
+      38.49043900100003,
+      -86.904061,
+      38.90421110300008
+    ]
+  },
+  {
+    "County": "Jasper",
+    "Population": 34133,
+    "FIPS": "18073",
+    "BBox": [
+      -87.27655974299995,
+      40.736537001000045,
+      -86.92963665099995,
+      41.286319469000034
+    ]
+  },
+  {
+    "County": "Jefferson",
+    "Population": 33494,
+    "FIPS": "18077",
+    "BBox": [
+      -85.68401897099994,
+      38.58508000100005,
+      -85.20142898299997,
+      38.914027
+    ]
+  },
+  {
+    "County": "Clinton",
+    "Population": 33337,
+    "FIPS": "18023",
+    "BBox": [
+      -86.69577693699995,
+      40.17646506500006,
+      -86.24236634599998,
+      40.432129204000034
+    ]
+  },
+  {
+    "County": "Gibson",
+    "Population": 33184,
+    "FIPS": "18051",
+    "BBox": [
+      -87.98832285699996,
+      38.165390280000054,
+      -87.31553719299995,
+      38.533074
+    ]
+  },
+  {
+    "County": "Greene",
+    "Population": 31138,
+    "FIPS": "18055",
+    "BBox": [
+      -87.24107,
+      38.902433,
+      -86.682036,
+      39.171846
+    ]
+  },
+  {
+    "County": "Wabash",
+    "Population": 30700,
+    "FIPS": "18169",
+    "BBox": [
+      -85.94644108999995,
+      40.65099011900003,
+      -85.63858986999998,
+      41.04633964000004
+    ]
+  },
+  {
+    "County": "Ripley",
+    "Population": 29508,
+    "FIPS": "18137",
+    "BBox": [
+      -85.444952,
+      38.912976,
+      -85.065105,
+      39.310352
+    ]
+  },
+  {
+    "County": "Wells",
+    "Population": 28926,
+    "FIPS": "18179",
+    "BBox": [
+      -85.449086847,
+      40.566818745000035,
+      -85.06840149699997,
+      40.91782565400007
+    ]
+  },
+  {
+    "County": "Washington",
+    "Population": 28408,
+    "FIPS": "18175",
+    "BBox": [
+      -86.30955235899995,
+      38.418102,
+      -85.847514,
+      38.784266
+    ]
+  },
+  {
+    "County": "Jennings",
+    "Population": 27520,
+    "FIPS": "18079",
+    "BBox": [
+      -85.79976248599996,
+      38.80681600100007,
+      -85.44006952199999,
+      39.19635057000005
+    ]
+  },
+  {
+    "County": "Decatur",
+    "Population": 26638,
+    "FIPS": "18031",
+    "BBox": [
+      -85.68731813199997,
+      39.13074419600008,
+      -85.29610683199996,
+      39.45341961200006
+    ]
+  },
+  {
+    "County": "Clay",
+    "Population": 26468,
+    "FIPS": "18021",
+    "BBox": [
+      -87.240706,
+      39.16818199100004,
+      -86.939883,
+      39.60706646600005
+    ]
+  },
+  {
+    "County": "Scott",
+    "Population": 25254,
+    "FIPS": "18143",
+    "BBox": [
+      -85.888445,
+      38.56123300100006,
+      -85.570184,
+      38.831985
+    ]
+  },
+  {
+    "County": "White",
+    "Population": 25160,
+    "FIPS": "18181",
+    "BBox": [
+      -87.099877,
+      40.561214918000076,
+      -86.58039511599998,
+      40.912474
+    ]
+  },
+  {
+    "County": "Posey",
+    "Population": 24918,
+    "FIPS": "18129",
+    "BBox": [
+      -88.09720200099997,
+      37.77167934000005,
+      -87.68817388099995,
+      38.23034167700007
+    ]
+  },
+  {
+    "County": "Randolph",
+    "Population": 24491,
+    "FIPS": "18135",
+    "BBox": [
+      -85.21891282099995,
+      40.004234,
+      -84.803656,
+      40.31096396400005
+    ]
+  },
+  {
+    "County": "Fayette",
+    "Population": 23486,
+    "FIPS": "18041",
+    "BBox": [
+      -85.30157671799998,
+      39.52547702900006,
+      -85.034564,
+      39.78858280900005
+    ]
+  },
+  {
+    "County": "Starke",
+    "Population": 23444,
+    "FIPS": "18149",
+    "BBox": [
+      -86.93014084099997,
+      41.171438,
+      -86.466222,
+      41.432995006000056
+    ]
+  },
+  {
+    "County": "Franklin",
+    "Population": 23436,
+    "FIPS": "18047",
+    "BBox": [
+      -85.29862815499996,
+      39.26821426600003,
+      -84.815366,
+      39.526617001000034
+    ]
+  },
+  {
+    "County": "Owen",
+    "Population": 22114,
+    "FIPS": "18119",
+    "BBox": [
+      -87.054915,
+      39.16563400100006,
+      -86.63080407699994,
+      39.47291800100004
+    ]
+  },
+  {
+    "County": "Sullivan",
+    "Population": 20969,
+    "FIPS": "18153",
+    "BBox": [
+      -87.657993,
+      38.90158800100005,
+      -87.240358,
+      39.25939784800005
+    ]
+  },
+  {
+    "County": "Carroll",
+    "Population": 20600,
+    "FIPS": "18015",
+    "BBox": [
+      -86.77423380699997,
+      40.430966,
+      -86.373378,
+      40.73760654700004
+    ]
+  },
+  {
+    "County": "Fulton",
+    "Population": 20147,
+    "FIPS": "18049",
+    "BBox": [
+      -86.46825,
+      40.90907,
+      -85.945388,
+      41.172891470000025
+    ]
+  },
+  {
+    "County": "Jay",
+    "Population": 19977,
+    "FIPS": "18075",
+    "BBox": [
+      -85.22013801099996,
+      40.30662641400005,
+      -84.80246834399998,
+      40.57220119600004
+    ]
+  },
+  {
+    "County": "Spencer",
+    "Population": 19965,
+    "FIPS": "18147",
+    "BBox": [
+      -87.26900261899993,
+      37.78229758600003,
+      -86.764976,
+      38.205379
+    ]
+  },
+  {
+    "County": "Orange",
+    "Population": 19867,
+    "FIPS": "18117",
+    "BBox": [
+      -86.683157296,
+      38.39415407300004,
+      -86.307709,
+      38.68858717300003
+    ]
+  },
+  {
+    "County": "Perry",
+    "Population": 19390,
+    "FIPS": "18123",
+    "BBox": [
+      -86.81362899399994,
+      37.84143114600005,
+      -86.43024222999998,
+      38.26625207700005
+    ]
+  },
+  {
+    "County": "Fountain",
+    "Population": 17154,
+    "FIPS": "18045",
+    "BBox": [
+      -87.440169,
+      39.95242363700004,
+      -87.09027025099994,
+      40.36665600100008
+    ]
+  },
+  {
+    "County": "Parke",
+    "Population": 16828,
+    "FIPS": "18121",
+    "BBox": [
+      -87.43420400099996,
+      39.60482199900008,
+      -87.00963621799997,
+      39.95311107100008
+    ]
+  },
+  {
+    "County": "Rush",
+    "Population": 16782,
+    "FIPS": "18139",
+    "BBox": [
+      -85.63324000599994,
+      39.452418986000055,
+      -85.29760229899995,
+      39.78758707500003
+    ]
+  },
+  {
+    "County": "Brown",
+    "Population": 15933,
+    "FIPS": "18013",
+    "BBox": [
+      -86.38146653099994,
+      39.048434,
+      -86.079161,
+      39.34414184100007
+    ]
+  },
+  {
+    "County": "Vermillion",
+    "Population": 15445,
+    "FIPS": "18165",
+    "BBox": [
+      -87.53335,
+      39.60730500100004,
+      -87.353711,
+      40.148398
+    ]
+  },
+  {
+    "County": "Tipton",
+    "Population": 15267,
+    "FIPS": "18159",
+    "BBox": [
+      -86.24296436099996,
+      40.21583717200008,
+      -85.86026786199994,
+      40.406898170000034
+    ]
+  },
+  {
+    "County": "Newton",
+    "Population": 14289,
+    "FIPS": "18111",
+    "BBox": [
+      -87.52667637699994,
+      40.736513596000066,
+      -87.26730021099996,
+      41.21868072800004
+    ]
+  },
+  {
+    "County": "Pulaski",
+    "Population": 12493,
+    "FIPS": "18131",
+    "BBox": [
+      -86.931019,
+      40.909748,
+      -86.467016,
+      41.17234321800004
+    ]
+  },
+  {
+    "County": "Pike",
+    "Population": 11932,
+    "FIPS": "18125",
+    "BBox": [
+      -87.46306998199998,
+      38.230983,
+      -87.072128,
+      38.55241100100005
+    ]
+  },
+  {
+    "County": "Blackford",
+    "Population": 11638,
+    "FIPS": "18009",
+    "BBox": [
+      -85.44700200299997,
+      40.378224352000075,
+      -85.20061954399995,
+      40.567332246000035
+    ]
+  },
+  {
+    "County": "Crawford",
+    "Population": 10451,
+    "FIPS": "18025",
+    "BBox": [
+      -86.68150806199998,
+      38.104365821000044,
+      -86.24606750399994,
+      38.423211028000026
+    ]
+  },
+  {
+    "County": "Switzerland",
+    "Population": 10039,
+    "FIPS": "18155",
+    "BBox": [
+      -85.203447,
+      38.687553870000045,
+      -84.78453948799995,
+      38.929540505000034
+    ]
+  },
+  {
+    "County": "Martin",
+    "Population": 9824,
+    "FIPS": "18101",
+    "BBox": [
+      -86.924169,
+      38.49452418000004,
+      -86.68236819699996,
+      38.90458793800008
+    ]
+  },
+  {
+    "County": "Benton",
+    "Population": 8885,
+    "FIPS": "18007",
+    "BBox": [
+      -87.52659475399997,
+      40.47562196500007,
+      -87.09365918899994,
+      40.73697186900006
+    ]
+  },
+  {
+    "County": "Warren",
+    "Population": 8481,
+    "FIPS": "18171",
+    "BBox": [
+      -87.531477,
+      40.12735800100006,
+      -87.092131,
+      40.47689438900005
+    ]
+  },
+  {
+    "County": "Union",
+    "Population": 6792,
+    "FIPS": "18161",
+    "BBox": [
+      -85.036321,
+      39.52289700100005,
+      -84.81437897899997,
+      39.729280886000026
+    ]
+  },
+  {
+    "County": "Ohio",
+    "Population": 5987,
+    "FIPS": "18115",
+    "BBox": [
+      -85.140237,
+      38.90076487700003,
+      -84.82986141299995,
+      39.03119716600003
+    ]
+  }
+];
+
+const COUNTY_PATHS = [{"fips": "18163", "name": "Vanderburgh", "d": "M314.26,3592.25 L484.23,3595.29 L483.5,3638.97 L480.5,3638.93 L479.49,3725.93 L497.36,3725.86 L496.86,3819.65 L456.04,3852.93 L450.57,3854.48 L415.96,3832.5 L407.52,3821.93 L402.49,3808.95 L399.46,3809.01 L401.98,3799.52 L399.23,3790.47 L391.85,3785.39 L381.52,3788.77 L377.71,3811.06 L364.94,3824.47 L368.78,3822.44 L361.87,3832.74 L361.18,3840.27 L367.06,3854.0 L392.06,3875.81 L394.53,3888.18 L392.7,3888.18 L389.65,3902.08 L384.07,3912.62 L372.77,3926.9 L350.88,3934.23 L328.11,3932.71 L321.14,3924.14 L319.4,3904.47 L330.9,3880.63 L332.96,3873.19 L330.8,3864.91 L318.81,3857.05 L305.01,3863.14 L307.68,3635.87 L313.84,3635.97 L314.26,3592.25 Z", "cx": 392.99, "cy": 3735.82, "bbox_svg": [305.01, 3592.25, 497.36, 3934.23]}, {"fips": "18147", "name": "Spencer", "d": "M1003.53,3555.3 L1003.77,3580.63 L994.29,3579.3 L994.91,3590.29 L998.52,3592.95 L997.37,3598.05 L1000.59,3603.68 L992.25,3617.66 L996.8,3621.2 L997.43,3624.19 L994.73,3626.29 L998.98,3630.18 L1000.94,3637.03 L991.51,3642.66 L996.26,3650.13 L1002.69,3643.79 L1004.88,3649.26 L1009.09,3650.49 L1005.97,3655.25 L1008.58,3658.22 L1009.92,3656.47 L1012.31,3659.24 L1017.5,3655.17 L1018.01,3658.77 L1021.25,3658.19 L1020.8,3673.66 L1018.05,3673.16 L1018.05,3677.29 L1011.88,3682.2 L1021.0,3701.63 L1024.0,3702.15 L1015.58,3708.63 L1012.05,3707.62 L1013.43,3711.01 L1010.44,3712.32 L1013.13,3713.21 L1012.77,3716.78 L1007.15,3719.75 L1008.58,3722.17 L1012.31,3720.37 L1010.09,3724.59 L1013.26,3725.18 L1014.77,3729.92 L1016.13,3726.6 L1022.54,3730.77 L1010.94,3734.33 L1015.74,3736.33 L1015.98,3747.03 L1013.78,3750.54 L1016.92,3750.54 L1018.11,3762.63 L1007.13,3760.03 L1000.02,3746.08 L996.98,3745.6 L995.97,3752.7 L990.65,3759.82 L978.39,3761.92 L950.28,3776.3 L918.72,3814.21 L906.24,3823.51 L861.68,3829.56 L835.99,3840.6 L818.02,3853.61 L808.12,3868.01 L810.22,3891.81 L794.76,3949.19 L783.63,3965.84 L767.73,3976.04 L755.64,3978.34 L744.2,3974.98 L734.9,3945.15 L719.28,3921.06 L674.53,3911.92 L636.6,3882.64 L637.51,3835.68 L658.23,3808.4 L665.34,3812.5 L665.51,3804.86 L668.28,3804.76 L666.51,3795.0 L669.97,3788.99 L692.65,3773.2 L700.52,3764.27 L702.47,3758.11 L704.89,3760.19 L708.46,3757.77 L708.43,3753.89 L703.93,3753.26 L702.77,3750.22 L710.36,3751.09 L713.25,3748.98 L713.22,3742.65 L722.4,3743.76 L725.66,3740.76 L724.86,3734.98 L715.53,3730.86 L720.02,3727.81 L722.15,3730.77 L724.74,3729.08 L723.0,3720.31 L727.29,3714.33 L725.43,3707.02 L729.14,3701.98 L741.23,3705.65 L747.31,3716.84 L755.17,3713.54 L764.52,3714.17 L771.08,3710.14 L774.63,3711.75 L773.8,3705.79 L768.29,3703.76 L768.75,3696.77 L772.51,3690.23 L771.65,3683.1 L780.24,3670.67 L779.86,3667.22 L785.82,3663.96 L786.88,3659.82 L784.77,3656.57 L787.78,3653.82 L787.68,3642.49 L829.97,3642.41 L829.9,3557.09 L1003.53,3555.3 Z", "cx": 837.63, "cy": 3746.33, "bbox_svg": [636.6, 3555.3, 1024.0, 3978.34]}, {"fips": "18129", "name": "Posey", "d": "M87.39,3530.37 L229.11,3532.09 L228.68,3558.68 L314.37,3559.62 L313.84,3635.97 L307.68,3635.87 L305.01,3863.14 L290.9,3868.13 L276.6,3865.94 L259.77,3869.01 L235.03,3885.01 L205.56,3884.24 L197.95,3879.89 L192.74,3872.68 L192.71,3867.13 L184.79,3860.48 L179.41,3848.27 L170.77,3837.8 L157.53,3832.75 L148.95,3834.91 L122.24,3869.61 L120.08,3881.2 L124.24,3893.56 L143.92,3917.64 L148.28,3948.02 L145.86,3953.63 L125.34,3964.26 L117.1,3985.86 L111.73,3988.97 L105.59,3987.54 L95.58,3975.3 L73.68,3961.76 L62.19,3958.7 L53.23,3961.43 L52.29,3955.13 L48.11,3951.44 L41.15,3951.88 L26.84,3960.08 L15.7,3955.89 L4.64,3941.79 L4.82,3936.19 L8.93,3931.19 L14.45,3929.79 L27.37,3937.55 L40.07,3939.35 L50.94,3935.29 L54.82,3927.52 L50.21,3919.44 L32.52,3913.96 L24.66,3907.44 L13.94,3880.52 L2.54,3867.55 L0.0,3858.3 L2.82,3854.71 L8.34,3854.93 L19.74,3864.74 L32.75,3869.03 L50.66,3867.65 L58.64,3872.59 L63.53,3869.07 L64.34,3864.81 L58.6,3846.88 L28.69,3843.57 L21.5,3835.78 L24.21,3829.25 L31.07,3826.61 L39.33,3835.2 L48.76,3834.32 L51.5,3829.99 L47.15,3819.44 L46.33,3804.05 L59.91,3800.6 L65.09,3792.51 L65.02,3782.92 L55.05,3752.48 L58.94,3740.11 L67.51,3733.92 L68.48,3730.23 L63.04,3726.51 L46.29,3727.57 L42.39,3722.53 L41.98,3715.03 L49.44,3708.86 L80.88,3706.7 L99.65,3694.01 L108.27,3674.24 L105.42,3660.69 L69.16,3676.8 L63.71,3671.75 L62.79,3659.93 L73.32,3652.98 L93.32,3651.3 L94.8,3637.74 L100.71,3628.14 L109.5,3627.97 L116.65,3634.11 L130.9,3615.83 L130.48,3608.65 L143.15,3598.34 L141.73,3589.42 L135.32,3586.62 L132.06,3590.71 L131.94,3601.29 L125.17,3604.18 L125.62,3596.12 L122.67,3588.12 L103.33,3574.19 L93.43,3563.11 L87.78,3553.76 L85.77,3541.75 L87.39,3530.37 Z", "cx": 175.87, "cy": 3738.77, "bbox_svg": [0.0, 3530.37, 314.37, 3988.97]}, {"fips": "18173", "name": "Warrick", "d": "M599.9,3514.56 L614.16,3514.61 L614.03,3529.03 L787.16,3528.0 L787.23,3556.76 L829.9,3557.09 L829.97,3642.41 L787.68,3642.49 L787.78,3653.82 L784.77,3656.57 L786.88,3659.82 L785.82,3663.96 L779.86,3667.22 L780.24,3670.67 L771.65,3683.1 L772.51,3690.23 L768.75,3696.77 L768.29,3703.76 L773.8,3705.79 L774.63,3711.75 L771.08,3710.14 L764.52,3714.17 L755.17,3713.54 L747.31,3716.84 L741.23,3705.65 L729.14,3701.98 L725.43,3707.02 L727.29,3714.33 L723.0,3720.31 L724.74,3729.08 L722.15,3730.77 L720.02,3727.81 L715.53,3730.86 L724.86,3734.98 L725.66,3740.76 L722.4,3743.76 L713.22,3742.65 L713.25,3748.98 L710.36,3751.09 L702.77,3750.22 L703.93,3753.26 L708.43,3753.89 L708.46,3757.77 L704.89,3760.19 L702.47,3758.11 L700.52,3764.27 L692.65,3773.2 L669.97,3788.99 L666.51,3795.0 L668.28,3804.76 L665.51,3804.86 L665.34,3812.5 L658.23,3808.4 L637.51,3835.68 L636.6,3882.64 L598.3,3855.4 L578.67,3849.68 L564.22,3838.7 L557.67,3829.48 L546.44,3822.81 L525.04,3815.9 L496.86,3819.65 L497.36,3725.86 L479.49,3725.93 L480.5,3638.93 L483.5,3638.97 L484.63,3559.4 L599.65,3559.02 L599.9,3514.56 Z", "cx": 634.14, "cy": 3668.56, "bbox_svg": [479.49, 3514.56, 829.97, 3882.64]}, {"fips": "18123", "name": "Perry", "d": "M1173.84,3495.15 L1172.68,3553.13 L1258.13,3553.83 L1256.48,3641.2 L1253.57,3647.19 L1253.99,3655.1 L1260.15,3665.44 L1278.91,3674.78 L1281.11,3685.11 L1276.83,3697.76 L1263.08,3710.65 L1250.75,3714.33 L1220.92,3715.62 L1211.01,3721.05 L1208.35,3732.18 L1208.54,3794.17 L1212.19,3806.84 L1220.54,3818.37 L1221.79,3831.63 L1201.09,3843.59 L1176.45,3838.43 L1159.91,3839.26 L1151.1,3853.3 L1152.9,3890.35 L1147.38,3902.22 L1127.66,3915.57 L1110.68,3919.01 L1104.35,3913.6 L1102.81,3903.67 L1116.46,3865.68 L1115.27,3852.75 L1104.63,3847.67 L1088.74,3845.63 L1060.57,3867.17 L1048.95,3865.9 L1035.55,3848.75 L1014.14,3808.98 L1000.98,3771.46 L986.63,3762.35 L993.61,3756.72 L996.38,3751.57 L995.28,3747.59 L998.32,3745.15 L1007.13,3760.03 L1018.11,3762.63 L1016.92,3750.54 L1013.78,3750.54 L1015.98,3747.03 L1015.74,3736.33 L1010.94,3734.33 L1022.61,3731.18 L1016.13,3726.6 L1014.77,3729.92 L1013.26,3725.18 L1010.09,3724.59 L1012.31,3720.37 L1007.15,3720.15 L1012.77,3716.78 L1013.13,3713.21 L1010.44,3712.32 L1013.43,3711.01 L1012.05,3707.62 L1015.58,3708.63 L1024.0,3702.15 L1021.0,3701.63 L1011.88,3682.2 L1018.05,3677.29 L1018.05,3673.16 L1020.8,3673.66 L1021.25,3658.19 L1018.01,3658.77 L1017.5,3655.17 L1012.31,3659.24 L1009.92,3656.47 L1008.58,3658.22 L1005.97,3655.25 L1009.09,3650.49 L1004.88,3649.26 L1002.69,3643.79 L996.26,3650.13 L991.51,3642.66 L1000.94,3637.03 L998.98,3630.18 L994.73,3626.29 L997.43,3624.19 L996.8,3621.2 L992.25,3617.66 L1000.67,3603.2 L997.37,3598.05 L998.52,3592.95 L994.91,3590.29 L994.29,3579.3 L1003.77,3580.63 L1003.07,3511.78 L1089.82,3512.23 L1089.64,3497.55 L1173.84,3495.15 Z", "cx": 1121.5, "cy": 3680.78, "bbox_svg": [986.63, 3495.15, 1281.11, 3919.01]}, {"fips": "18043", "name": "Floyd", "d": "M1586.8,3342.57 L1616.14,3342.35 L1616.16,3349.73 L1637.49,3349.77 L1637.49,3357.11 L1759.82,3356.27 L1759.43,3359.89 L1795.74,3410.29 L1788.88,3416.98 L1781.21,3417.84 L1778.64,3421.72 L1773.47,3420.76 L1778.68,3428.76 L1768.12,3427.65 L1769.67,3435.3 L1778.81,3440.3 L1770.72,3445.08 L1775.03,3452.43 L1768.79,3453.71 L1772.81,3462.42 L1772.39,3473.13 L1750.66,3478.84 L1743.42,3484.11 L1737.57,3496.81 L1735.89,3520.13 L1731.91,3529.1 L1725.5,3538.64 L1706.16,3555.0 L1689.35,3579.94 L1689.48,3575.25 L1644.31,3574.61 L1646.49,3502.64 L1632.19,3502.57 L1632.19,3487.83 L1617.92,3487.83 L1615.67,3458.78 L1601.3,3458.86 L1601.0,3430.06 L1587.09,3429.78 L1586.8,3342.57 Z", "cx": 1683.46, "cy": 3442.2, "bbox_svg": [1586.8, 3342.35, 1795.74, 3579.94]}, {"fips": "18061", "name": "Harrison", "d": "M1417.91,3337.99 L1586.8,3342.57 L1587.09,3429.78 L1601.0,3430.06 L1601.3,3458.86 L1615.67,3458.78 L1617.92,3487.83 L1632.19,3487.83 L1632.19,3502.57 L1646.49,3502.64 L1644.31,3574.61 L1689.48,3575.25 L1682.62,3602.56 L1684.82,3671.86 L1677.29,3692.98 L1671.28,3734.36 L1656.08,3753.85 L1591.63,3766.65 L1585.13,3776.38 L1585.09,3797.77 L1578.38,3802.46 L1572.75,3799.41 L1563.76,3787.63 L1552.63,3763.28 L1555.31,3765.38 L1555.05,3764.88 L1539.2,3751.79 L1515.7,3744.43 L1497.56,3746.01 L1486.62,3750.62 L1474.82,3750.03 L1442.74,3732.71 L1432.73,3721.06 L1417.93,3713.36 L1404.78,3701.32 L1398.91,3681.83 L1397.46,3660.07 L1404.16,3632.12 L1402.86,3621.09 L1388.25,3599.36 L1366.96,3586.88 L1358.81,3578.92 L1372.32,3582.36 L1374.42,3579.07 L1367.67,3572.09 L1373.26,3571.55 L1375.45,3559.16 L1389.25,3558.6 L1385.37,3551.84 L1390.21,3547.18 L1382.8,3540.64 L1386.59,3536.1 L1393.59,3540.02 L1398.99,3533.65 L1400.82,3480.97 L1396.36,3475.99 L1398.96,3474.19 L1405.07,3482.14 L1407.56,3474.68 L1414.11,3477.02 L1417.39,3468.98 L1416.01,3464.34 L1408.45,3465.5 L1408.36,3457.98 L1412.81,3454.78 L1404.92,3452.78 L1400.0,3460.27 L1398.06,3457.87 L1399.63,3452.01 L1389.37,3444.48 L1394.28,3437.15 L1391.13,3432.02 L1392.52,3428.76 L1396.8,3438.85 L1402.08,3439.28 L1399.07,3433.94 L1401.69,3431.0 L1399.56,3421.09 L1403.43,3418.74 L1400.69,3411.31 L1395.33,3411.33 L1403.54,3399.67 L1408.28,3398.79 L1411.38,3405.24 L1419.15,3412.19 L1422.15,3411.4 L1417.64,3405.23 L1421.35,3397.51 L1413.57,3393.73 L1411.37,3380.05 L1413.21,3371.32 L1415.51,3371.34 L1418.27,3377.57 L1422.83,3372.39 L1411.09,3366.11 L1412.29,3362.65 L1418.46,3365.53 L1418.57,3354.9 L1408.52,3349.69 L1417.91,3337.99 Z", "cx": 1526.32, "cy": 3565.5, "bbox_svg": [1358.81, 3337.99, 1689.48, 3802.46]}, {"fips": "18025", "name": "Crawford", "d": "M1375.37,3337.47 L1416.03,3337.95 L1408.52,3349.69 L1417.86,3353.4 L1419.33,3363.78 L1416.78,3366.22 L1412.29,3362.65 L1410.76,3365.36 L1422.9,3372.96 L1418.27,3377.57 L1415.51,3371.34 L1413.21,3371.32 L1411.37,3380.05 L1413.57,3393.73 L1421.35,3397.51 L1417.64,3405.23 L1422.15,3411.4 L1419.15,3412.19 L1411.38,3405.24 L1408.28,3398.79 L1403.85,3399.41 L1395.33,3411.33 L1400.69,3411.31 L1403.43,3418.74 L1399.56,3421.09 L1401.69,3431.0 L1399.07,3433.94 L1402.08,3439.28 L1396.31,3438.31 L1393.55,3428.88 L1391.18,3430.89 L1394.36,3436.68 L1389.37,3444.48 L1399.63,3452.01 L1398.5,3459.1 L1401.09,3460.1 L1404.06,3453.34 L1409.02,3452.43 L1413.05,3455.23 L1408.36,3457.98 L1408.54,3465.77 L1413.06,3463.77 L1417.73,3466.78 L1414.75,3476.44 L1407.77,3474.51 L1405.07,3482.14 L1398.96,3474.19 L1396.36,3475.99 L1400.82,3480.97 L1398.99,3533.65 L1393.59,3540.02 L1386.83,3536.1 L1383.06,3539.19 L1383.2,3542.3 L1390.21,3547.18 L1385.37,3551.84 L1389.25,3558.6 L1375.45,3559.16 L1373.26,3571.55 L1367.67,3572.09 L1374.42,3579.07 L1372.32,3582.36 L1357.45,3578.27 L1345.01,3565.56 L1337.0,3561.86 L1325.88,3565.84 L1321.27,3576.91 L1321.89,3588.94 L1326.25,3596.5 L1357.29,3604.45 L1363.84,3609.48 L1365.19,3614.08 L1363.07,3622.36 L1355.19,3631.68 L1319.47,3631.59 L1312.78,3638.38 L1307.31,3653.75 L1303.15,3656.3 L1279.42,3634.24 L1265.94,3633.6 L1256.48,3641.2 L1258.13,3553.83 L1172.68,3553.13 L1173.85,3494.42 L1089.64,3497.55 L1088.19,3365.89 L1231.72,3364.15 L1374.82,3366.52 L1375.37,3337.47 Z", "cx": 1264.88, "cy": 3468.57, "bbox_svg": [1088.19, 3337.47, 1422.9, 3656.3]}, {"fips": "18037", "name": "Dubois", "d": "M1087.56,3235.2 L1089.82,3512.23 L1003.07,3511.78 L1003.53,3555.3 L787.23,3556.76 L787.84,3245.75 L790.59,3248.13 L793.06,3258.21 L796.17,3259.98 L801.43,3258.13 L808.67,3249.7 L817.31,3247.96 L826.07,3253.21 L834.27,3248.29 L840.29,3252.43 L847.11,3246.87 L861.24,3258.33 L877.25,3257.0 L877.28,3268.4 L882.48,3270.24 L889.69,3265.96 L890.01,3258.58 L895.6,3255.0 L902.15,3255.41 L903.94,3262.06 L909.25,3264.75 L920.07,3259.2 L927.05,3265.23 L936.29,3266.08 L942.96,3254.67 L954.87,3251.29 L963.58,3244.97 L969.13,3237.95 L968.26,3234.22 L1087.56,3235.2 Z", "cx": 935.92, "cy": 3396.15, "bbox_svg": [787.23, 3234.22, 1089.82, 3556.76]}, {"fips": "18051", "name": "Gibson", "d": "M487.73,3227.6 L487.43,3295.21 L501.72,3295.14 L501.69,3324.46 L530.33,3324.34 L530.06,3385.47 L537.17,3385.88 L537.51,3380.17 L538.41,3384.37 L540.64,3384.53 L540.79,3378.87 L545.28,3377.59 L544.78,3383.46 L546.87,3385.26 L551.41,3377.23 L553.87,3383.64 L557.0,3379.03 L558.39,3383.81 L563.09,3381.59 L563.19,3378.9 L568.43,3378.11 L568.73,3372.93 L576.06,3374.62 L574.73,3378.74 L578.7,3378.31 L581.99,3373.51 L584.06,3376.15 L580.74,3378.11 L582.51,3382.11 L583.07,3378.75 L586.89,3381.58 L589.0,3378.79 L591.68,3382.94 L594.63,3377.25 L593.77,3382.62 L597.02,3383.35 L598.28,3377.49 L600.79,3379.96 L599.07,3381.46 L599.65,3559.02 L484.63,3559.4 L484.23,3595.29 L314.24,3592.25 L314.37,3559.62 L228.68,3558.68 L229.11,3532.09 L87.01,3530.37 L89.85,3524.41 L89.72,3515.24 L84.04,3503.31 L95.81,3509.82 L97.3,3524.74 L103.22,3525.85 L107.07,3510.53 L119.81,3503.28 L119.12,3499.41 L112.13,3494.26 L111.98,3486.94 L120.34,3480.16 L124.21,3466.0 L133.55,3458.01 L139.88,3458.01 L144.78,3464.67 L136.0,3485.09 L140.18,3492.16 L145.92,3491.49 L159.76,3476.34 L167.41,3454.01 L173.22,3448.62 L179.24,3450.57 L182.12,3456.42 L177.72,3468.02 L179.9,3482.26 L186.4,3485.92 L193.93,3483.83 L200.94,3474.21 L204.44,3462.96 L202.92,3438.03 L209.69,3416.03 L223.26,3397.92 L244.68,3389.03 L268.6,3354.95 L271.59,3346.8 L297.88,3342.12 L319.58,3329.21 L326.02,3331.45 L333.08,3329.38 L334.36,3323.66 L327.39,3319.33 L325.93,3313.87 L332.55,3311.57 L339.56,3301.95 L343.27,3303.69 L340.2,3308.45 L341.88,3310.91 L348.17,3305.44 L352.62,3305.44 L356.27,3317.35 L364.26,3311.35 L379.18,3311.81 L386.45,3304.61 L397.65,3277.07 L392.01,3267.39 L393.68,3261.49 L397.31,3260.68 L403.9,3269.98 L426.11,3268.95 L428.35,3265.37 L420.94,3248.53 L423.3,3244.24 L429.92,3242.26 L436.55,3248.16 L433.92,3261.47 L447.11,3257.47 L462.75,3264.86 L466.93,3254.65 L475.77,3250.67 L482.19,3243.22 L475.2,3236.69 L474.99,3233.2 L484.09,3238.23 L485.24,3229.95 L487.73,3227.6 Z", "cx": 393.77, "cy": 3448.83, "bbox_svg": [84.04, 3227.6, 600.79, 3595.29]}, {"fips": "18125", "name": "Pike", "d": "M687.79,3208.42 L706.92,3215.09 L712.14,3228.43 L724.92,3231.27 L722.64,3240.57 L726.22,3244.53 L738.94,3242.06 L736.59,3234.01 L739.06,3228.81 L748.38,3235.86 L751.77,3233.58 L752.66,3224.89 L760.34,3222.84 L768.58,3228.9 L772.12,3237.6 L780.64,3239.95 L776.33,3247.7 L787.84,3245.75 L787.16,3528.0 L614.03,3529.03 L614.16,3514.61 L599.79,3514.56 L599.07,3381.46 L600.65,3379.63 L598.04,3377.6 L596.71,3383.54 L593.17,3382.01 L594.63,3377.25 L591.68,3382.94 L589.0,3378.79 L586.89,3381.58 L583.07,3378.75 L582.51,3382.11 L580.74,3378.11 L584.06,3376.15 L581.99,3373.51 L578.7,3378.31 L574.73,3378.74 L576.06,3374.62 L568.73,3372.93 L568.43,3378.11 L563.19,3378.9 L563.09,3381.59 L558.39,3383.81 L557.0,3379.03 L553.87,3383.64 L551.41,3377.23 L546.87,3385.26 L544.78,3383.46 L545.28,3377.59 L540.79,3378.87 L540.64,3384.53 L538.41,3384.37 L537.51,3380.17 L537.17,3385.88 L530.06,3385.47 L530.33,3324.34 L501.69,3324.46 L501.72,3295.14 L487.43,3295.21 L487.73,3227.6 L499.98,3228.2 L509.13,3232.42 L511.26,3230.36 L511.41,3222.75 L516.22,3220.05 L518.78,3221.88 L519.79,3230.92 L526.41,3234.8 L528.98,3232.58 L531.16,3220.14 L545.81,3221.89 L551.54,3227.23 L550.67,3244.0 L558.65,3249.06 L564.37,3243.27 L565.57,3236.88 L559.79,3227.4 L559.27,3221.48 L562.48,3217.42 L568.97,3216.98 L592.37,3235.56 L606.23,3241.3 L610.61,3250.24 L615.81,3250.67 L646.38,3234.55 L649.9,3220.72 L657.56,3215.11 L673.38,3221.68 L683.1,3209.68 L687.79,3208.42 Z", "cx": 664.89, "cy": 3361.83, "bbox_svg": [487.43, 3208.42, 787.84, 3529.03]}, {"fips": "18019", "name": "Clark", "d": "M1998.94,3154.26 L1999.1,3168.47 L2013.01,3168.25 L2013.14,3175.6 L2051.7,3174.29 L2061.11,3196.74 L2061.27,3215.7 L2058.22,3225.34 L2046.92,3237.4 L2019.66,3252.66 L2004.9,3283.02 L1992.58,3295.55 L1969.96,3304.89 L1932.76,3309.63 L1915.12,3320.96 L1904.35,3336.24 L1894.99,3362.39 L1890.71,3378.45 L1889.22,3399.56 L1876.83,3436.94 L1858.03,3463.08 L1810.66,3493.0 L1795.54,3488.56 L1786.46,3474.91 L1772.39,3473.13 L1772.81,3462.42 L1768.79,3453.71 L1775.03,3452.43 L1770.72,3445.08 L1778.81,3440.3 L1769.67,3435.3 L1767.91,3428.21 L1770.7,3426.27 L1778.68,3428.76 L1773.47,3420.76 L1778.64,3421.72 L1781.21,3417.84 L1788.88,3416.98 L1795.74,3410.29 L1759.43,3359.89 L1759.82,3356.27 L1637.49,3357.11 L1637.49,3349.77 L1616.16,3349.73 L1616.92,3273.77 L1645.32,3273.45 L1644.97,3258.79 L1700.43,3257.23 L1700.45,3242.76 L1714.7,3242.37 L1714.74,3213.62 L1729.25,3213.71 L1729.14,3199.41 L1749.47,3199.44 L1749.25,3185.25 L1756.27,3185.25 L1756.23,3177.82 L1763.44,3177.72 L1763.41,3170.52 L1770.43,3170.38 L1770.73,3155.86 L1998.94,3154.26 Z", "cx": 1837.12, "cy": 3283.51, "bbox_svg": [1616.16, 3154.26, 2061.27, 3493.0]}, {"fips": "18117", "name": "Orange", "d": "M1086.98,3074.0 L1374.76,3072.58 L1374.82,3366.52 L1231.72,3364.15 L1088.19,3365.89 L1086.98,3074.0 Z", "cx": 1231.35, "cy": 3219.14, "bbox_svg": [1086.98, 3072.58, 1374.82, 3366.52]}, {"fips": "18175", "name": "Washington", "d": "M1541.32,2976.84 L1550.02,2979.82 L1554.85,2986.36 L1564.87,2982.24 L1579.81,2998.94 L1587.63,2998.77 L1591.62,3005.2 L1591.49,2999.63 L1595.36,2993.1 L1600.26,2994.83 L1599.07,3002.44 L1603.53,3003.89 L1608.19,2999.45 L1613.86,2999.71 L1616.72,2993.62 L1623.53,2992.47 L1625.71,2993.84 L1623.31,2995.95 L1623.16,3002.36 L1627.74,3001.93 L1629.45,3008.18 L1636.73,3005.55 L1637.98,2999.64 L1641.97,2996.34 L1650.38,2999.74 L1648.7,3002.8 L1650.77,3007.08 L1653.86,3005.96 L1654.64,3001.14 L1660.97,2997.89 L1661.04,3005.26 L1668.0,3004.66 L1667.51,3010.22 L1676.07,3015.14 L1674.18,3007.16 L1676.61,3006.46 L1680.48,3013.36 L1680.7,3003.3 L1682.31,3009.58 L1688.38,3006.78 L1691.66,3010.24 L1691.43,3016.84 L1688.84,3018.42 L1695.42,3024.64 L1693.45,3030.55 L1696.76,3030.82 L1697.83,3026.3 L1699.86,3185.12 L1728.31,3185.2 L1729.25,3213.71 L1714.74,3213.62 L1714.7,3242.37 L1700.45,3242.76 L1700.43,3257.23 L1644.97,3258.79 L1645.32,3273.45 L1616.92,3273.77 L1616.17,3342.35 L1375.37,3337.47 L1374.44,3026.55 L1380.17,3024.28 L1379.24,3027.9 L1381.35,3031.09 L1381.58,3025.86 L1387.99,3025.22 L1387.4,3017.8 L1394.3,3001.09 L1393.56,2994.32 L1397.66,2997.71 L1405.38,2993.73 L1409.05,2995.98 L1409.61,2991.4 L1413.88,2988.13 L1417.43,2990.37 L1414.06,2995.71 L1415.97,2997.86 L1419.67,2992.56 L1428.71,2993.47 L1439.58,2981.25 L1445.0,2989.61 L1447.4,2986.47 L1446.87,2980.99 L1451.11,2980.7 L1454.09,2986.25 L1459.89,2986.81 L1456.23,2984.82 L1454.02,2978.46 L1458.73,2978.06 L1461.54,2983.03 L1466.68,2983.82 L1471.01,2976.42 L1479.01,2987.51 L1486.22,2985.62 L1508.47,2998.26 L1522.65,2993.11 L1533.41,2994.8 L1535.66,2992.25 L1534.31,2986.05 L1536.13,2980.74 L1541.32,2976.84 Z", "cx": 1531.04, "cy": 3160.34, "bbox_svg": [1374.44, 2976.42, 1729.25, 3342.35]}, {"fips": "18143", "name": "Scott", "d": "M1817.14,2928.72 L1824.72,2937.54 L1828.4,2937.09 L1830.31,2932.39 L1834.41,2932.73 L1838.12,2937.06 L1836.2,2937.8 L1836.53,2941.86 L1843.68,2942.74 L1844.29,2946.2 L1846.77,2943.36 L1854.92,2945.13 L1855.45,3023.93 L1869.66,3023.83 L1869.77,3030.78 L1884.01,3030.96 L1884.47,3052.68 L1912.75,3052.78 L1913.2,3081.84 L1941.74,3081.72 L1942.42,3154.51 L1770.73,3155.86 L1770.43,3170.38 L1763.41,3170.52 L1763.44,3177.72 L1756.23,3177.82 L1756.27,3185.25 L1749.25,3185.25 L1749.47,3199.44 L1728.46,3199.43 L1728.31,3185.2 L1699.86,3185.12 L1697.83,3026.3 L1700.19,3026.25 L1699.22,3030.21 L1702.62,3030.07 L1701.22,3033.2 L1703.64,3035.83 L1704.51,3031.43 L1712.29,3034.47 L1710.77,3031.7 L1713.46,3029.93 L1720.97,3030.67 L1726.07,3024.3 L1729.21,3025.77 L1728.48,3022.4 L1733.82,3020.12 L1732.44,3015.63 L1737.79,3008.62 L1740.92,3008.97 L1742.59,2997.05 L1750.68,2984.32 L1762.21,2980.88 L1760.06,2971.44 L1769.31,2953.29 L1778.92,2953.44 L1781.11,2948.2 L1784.02,2947.63 L1787.59,2951.41 L1790.43,2945.35 L1798.52,2945.9 L1797.84,2941.77 L1800.62,2939.89 L1813.38,2940.64 L1818.85,2935.84 L1815.21,2930.56 L1817.14,2928.72 Z", "cx": 1806.1, "cy": 3075.59, "bbox_svg": [1697.83, 2928.72, 1942.42, 3199.44]}, {"fips": "18027", "name": "Daviess", "d": "M916.98,2856.47 L917.04,2943.15 L902.51,2943.3 L901.79,3255.2 L891.81,3256.33 L889.69,3265.96 L882.48,3270.24 L877.28,3268.4 L877.25,3257.0 L861.24,3258.33 L847.11,3246.87 L840.29,3252.43 L834.27,3248.29 L826.07,3253.21 L817.31,3247.96 L808.67,3249.7 L800.42,3258.94 L795.52,3259.92 L788.82,3246.17 L776.33,3247.7 L780.64,3239.95 L772.12,3237.6 L769.63,3230.27 L761.17,3223.04 L752.66,3224.89 L751.77,3233.58 L748.38,3235.86 L739.06,3228.81 L736.59,3234.01 L738.94,3242.06 L728.1,3245.04 L722.72,3241.2 L724.92,3231.27 L712.14,3228.43 L709.59,3217.94 L702.62,3212.72 L684.69,3208.67 L673.38,3221.68 L657.56,3215.11 L660.93,3207.99 L652.22,3201.74 L659.9,3200.82 L661.29,3197.49 L652.69,3190.42 L659.05,3187.57 L660.94,3179.91 L653.64,3178.16 L651.67,3172.17 L654.9,3165.62 L652.59,3160.97 L658.37,3159.59 L659.74,3156.07 L654.45,3156.84 L647.48,3147.84 L651.73,3146.15 L656.1,3151.13 L660.08,3149.86 L658.14,3141.3 L648.65,3128.87 L651.39,3125.21 L658.01,3128.68 L662.07,3125.57 L657.43,3123.24 L655.9,3116.35 L650.61,3115.19 L648.88,3111.81 L650.97,3107.71 L659.23,3112.83 L659.83,3101.76 L657.61,3100.38 L646.83,3106.35 L644.26,3097.82 L653.4,3087.2 L653.95,3082.74 L649.47,3083.46 L643.98,3094.31 L641.03,3086.38 L632.76,3079.06 L642.22,3073.21 L628.18,3068.08 L637.6,3060.62 L636.04,3051.56 L645.32,3040.77 L641.21,3030.91 L641.98,3026.91 L651.92,3034.81 L653.32,3030.63 L647.67,3028.69 L647.09,3025.91 L652.56,3018.57 L659.93,3018.4 L655.22,3015.6 L654.77,3011.64 L648.59,3004.84 L653.19,3002.64 L655.79,3010.65 L659.25,3011.43 L655.42,3002.62 L659.04,2993.29 L655.63,2991.67 L648.59,2996.2 L644.81,2992.01 L647.31,2981.26 L658.64,2979.0 L657.97,2959.27 L654.03,2953.04 L658.79,2941.58 L663.46,2943.39 L659.77,2946.89 L660.66,2949.25 L669.02,2947.93 L667.29,2954.69 L669.46,2956.28 L673.16,2949.39 L677.94,2948.33 L675.21,2939.04 L679.2,2936.77 L681.23,2941.55 L680.57,2953.36 L687.12,2945.2 L686.8,2934.8 L691.05,2935.76 L692.48,2944.81 L695.53,2945.2 L697.55,2938.02 L691.63,2933.35 L692.42,2929.43 L696.1,2929.57 L698.72,2935.01 L700.22,2926.03 L707.94,2931.25 L710.94,2930.06 L709.62,2919.73 L701.43,2917.61 L700.97,2913.53 L707.09,2916.19 L713.35,2913.94 L724.65,2917.35 L727.82,2921.86 L732.04,2920.99 L735.85,2910.55 L732.89,2906.41 L734.73,2900.51 L729.87,2894.5 L732.74,2893.11 L742.49,2901.79 L745.82,2900.82 L745.86,2898.13 L740.74,2896.5 L738.88,2888.41 L741.99,2885.08 L746.3,2890.87 L750.61,2888.88 L746.99,2877.68 L742.9,2875.2 L746.65,2869.39 L752.17,2873.33 L755.78,2872.28 L755.35,2869.09 L749.0,2865.99 L751.13,2861.42 L758.11,2866.71 L762.88,2859.86 L768.42,2863.54 L773.31,2862.31 L772.92,2858.57 L767.43,2856.63 L916.98,2856.47 Z", "cx": 788.07, "cy": 3057.9, "bbox_svg": [628.18, 2856.47, 917.04, 3270.24]}, {"fips": "18101", "name": "Martin", "d": "M1086.9,2856.09 L1087.46,3234.29 L968.26,3234.22 L969.13,3237.95 L963.58,3244.97 L954.87,3251.29 L942.96,3254.67 L936.29,3266.08 L927.05,3265.23 L920.07,3259.2 L910.1,3264.82 L904.52,3262.66 L901.74,3250.44 L902.51,2943.3 L917.04,2943.15 L916.98,2856.47 L1086.9,2856.09 Z", "cx": 994.83, "cy": 3052.55, "bbox_svg": [901.74, 2856.09, 1087.46, 3266.08]}, {"fips": "18083", "name": "Knox", "d": "M658.1,2852.8 L743.51,2853.36 L743.53,2856.01 L767.43,2856.63 L773.61,2860.95 L769.33,2863.71 L762.67,2859.93 L758.33,2866.7 L753.68,2861.58 L749.37,2862.73 L749.3,2866.54 L755.28,2869.03 L755.89,2872.08 L752.22,2873.34 L746.65,2869.39 L742.9,2875.33 L746.95,2877.6 L750.66,2888.76 L746.38,2890.9 L741.99,2885.08 L738.86,2888.64 L740.81,2896.62 L745.86,2898.13 L745.82,2900.82 L742.49,2901.79 L732.74,2893.11 L729.86,2894.54 L734.73,2900.51 L732.89,2906.41 L735.85,2910.55 L731.94,2921.08 L727.82,2921.86 L724.65,2917.35 L713.35,2913.94 L707.09,2916.19 L701.13,2913.44 L701.43,2917.61 L709.62,2919.73 L711.18,2929.34 L708.11,2931.3 L700.18,2926.05 L698.76,2935.01 L696.03,2929.51 L692.19,2929.63 L691.67,2933.42 L697.57,2938.11 L695.15,2945.69 L692.46,2944.77 L691.27,2936.05 L687.69,2934.54 L685.53,2937.3 L687.12,2945.2 L680.86,2953.24 L681.1,2940.48 L678.1,2936.48 L675.19,2939.35 L677.94,2948.33 L673.13,2949.42 L669.99,2956.04 L667.32,2954.91 L668.42,2947.33 L660.0,2948.53 L663.59,2944.23 L660.45,2940.86 L654.07,2952.77 L657.97,2959.27 L658.68,2978.87 L647.24,2981.32 L644.82,2992.37 L648.59,2996.2 L655.63,2991.67 L659.04,2993.29 L655.42,3002.62 L659.25,3011.43 L655.79,3010.65 L653.19,3002.64 L648.59,3004.84 L654.77,3011.64 L655.22,3015.6 L659.93,3018.4 L652.56,3018.57 L647.09,3025.91 L647.67,3028.69 L653.32,3030.63 L651.92,3034.81 L641.98,3026.91 L641.21,3030.91 L645.32,3040.77 L636.04,3051.56 L637.6,3060.62 L628.18,3068.08 L642.22,3073.21 L632.76,3079.06 L641.03,3086.38 L643.98,3094.31 L649.47,3083.46 L653.95,3082.74 L653.4,3087.2 L644.26,3097.82 L646.83,3106.35 L657.61,3100.38 L659.88,3102.03 L659.23,3112.83 L651.06,3107.72 L648.87,3111.72 L650.61,3115.19 L655.9,3116.35 L657.43,3123.24 L662.07,3125.57 L658.01,3128.68 L651.39,3125.21 L648.65,3128.87 L658.14,3141.3 L660.08,3149.86 L656.1,3151.13 L651.73,3146.15 L647.48,3147.89 L654.53,3156.89 L659.73,3156.02 L658.37,3159.59 L652.59,3160.97 L654.9,3165.62 L651.66,3172.85 L653.96,3178.4 L660.67,3178.93 L659.2,3187.35 L652.69,3190.59 L661.3,3198.3 L652.19,3201.96 L661.02,3208.69 L657.24,3216.22 L649.88,3220.76 L647.11,3233.83 L635.3,3238.73 L622.15,3249.36 L611.86,3250.78 L605.87,3241.03 L591.85,3235.22 L573.33,3218.82 L563.79,3217.02 L558.95,3224.11 L565.33,3235.47 L565.25,3240.88 L561.59,3247.63 L557.34,3249.08 L550.34,3243.17 L551.73,3228.57 L549.01,3223.74 L531.54,3219.92 L529.16,3223.47 L528.72,3233.29 L525.29,3234.81 L519.79,3230.92 L518.68,3221.62 L514.95,3220.04 L511.23,3223.11 L509.56,3232.3 L499.94,3228.19 L487.18,3227.69 L482.41,3238.85 L475.28,3232.86 L475.15,3236.62 L482.13,3243.35 L475.77,3250.67 L467.05,3254.52 L464.64,3263.4 L461.11,3265.2 L447.24,3257.49 L433.92,3261.47 L436.42,3247.73 L432.38,3243.13 L426.6,3242.67 L420.91,3248.89 L427.95,3263.8 L426.45,3268.76 L404.16,3270.03 L397.31,3260.68 L392.62,3262.62 L392.25,3268.17 L397.68,3276.98 L387.21,3303.14 L380.81,3310.81 L374.7,3313.38 L364.13,3311.39 L356.27,3317.35 L352.62,3305.44 L348.17,3305.44 L341.88,3310.91 L340.2,3308.45 L343.27,3303.69 L339.56,3301.95 L332.55,3311.57 L325.93,3313.87 L327.39,3319.33 L334.36,3323.66 L333.08,3329.38 L326.02,3331.45 L319.58,3329.21 L297.88,3342.12 L271.59,3346.8 L273.33,3325.01 L280.87,3318.32 L282.08,3313.89 L277.87,3307.65 L262.74,3304.96 L261.95,3299.85 L266.13,3290.65 L275.0,3281.44 L295.33,3280.49 L310.07,3272.89 L319.42,3265.4 L326.12,3253.78 L336.75,3259.43 L345.91,3253.76 L347.39,3247.43 L337.59,3237.14 L328.27,3215.71 L343.44,3204.01 L342.41,3193.15 L352.59,3184.7 L350.96,3173.75 L352.56,3168.63 L365.01,3174.68 L373.87,3170.11 L372.82,3166.33 L363.89,3164.11 L360.97,3154.76 L366.15,3148.75 L365.12,3141.94 L370.52,3135.77 L366.39,3125.84 L367.23,3120.5 L377.49,3114.32 L381.53,3099.73 L387.87,3093.16 L399.59,3087.76 L425.3,3082.93 L433.98,3077.88 L443.75,3064.17 L444.61,3047.73 L452.74,3034.73 L454.31,3026.36 L462.09,3020.67 L456.08,3012.08 L461.3,2993.34 L456.61,2991.43 L450.34,2993.62 L447.47,2990.13 L458.62,2985.57 L462.14,2981.5 L462.44,2976.7 L438.02,2942.78 L442.34,2933.42 L438.48,2921.82 L438.7,2910.57 L418.12,2898.73 L418.81,2896.11 L425.94,2895.3 L422.65,2884.48 L432.17,2881.65 L429.94,2875.25 L425.03,2871.04 L425.26,2865.31 L429.0,2864.56 L431.64,2873.07 L432.84,2859.83 L438.99,2858.27 L658.07,2859.09 L658.1,2852.8 Z", "cx": 522.04, "cy": 3071.65, "bbox_svg": [261.95, 2852.8, 773.61, 3346.8]}, {"fips": "18077", "name": "Jefferson", "d": "M2224.48,2846.81 L2225.87,3069.64 L2210.79,3059.69 L2191.25,3028.92 L2174.25,3020.55 L2148.57,3018.71 L2100.56,3030.24 L2065.57,3023.53 L2046.52,3031.27 L2033.61,3052.76 L2033.43,3050.52 L2029.48,3072.28 L2031.22,3079.95 L2043.54,3101.78 L2043.75,3154.61 L2051.7,3174.29 L2013.14,3175.6 L2013.01,3168.25 L1999.1,3168.47 L1998.94,3153.95 L1942.42,3154.53 L1941.74,3081.72 L1913.2,3081.84 L1912.75,3052.78 L1884.47,3052.68 L1884.01,3030.96 L1869.77,3030.78 L1869.66,3023.83 L1855.45,3023.93 L1854.93,2936.7 L1889.9,2936.6 L1889.99,2943.25 L1897.11,2943.04 L1897.04,2936.49 L1911.41,2936.22 L1911.12,2907.03 L1939.68,2907.11 L1939.64,2878.0 L1967.59,2877.89 L1967.08,2848.46 L2224.48,2846.81 Z", "cx": 2043.74, "cy": 2975.16, "bbox_svg": [1854.93, 2846.81, 2225.87, 3175.6]}, {"fips": "18155", "name": "Switzerland", "d": "M2276.3,2831.16 L2272.9,2857.48 L2480.27,2859.91 L2532.04,2868.34 L2544.27,2877.68 L2546.31,2885.59 L2539.4,2902.76 L2516.25,2921.75 L2511.48,2929.9 L2513.23,2941.08 L2523.81,2961.0 L2525.5,2969.7 L2523.15,2976.16 L2512.14,2977.4 L2467.23,2965.84 L2425.95,2984.98 L2386.9,2982.38 L2371.28,2994.69 L2302.28,3034.37 L2270.41,3063.64 L2247.59,3072.66 L2235.52,3073.08 L2225.87,3069.64 L2224.77,2832.09 L2276.3,2831.16 Z", "cx": 2352.65, "cy": 2934.43, "bbox_svg": [2224.77, 2831.16, 2546.31, 3073.08]}, {"fips": "18093", "name": "Lawrence", "d": "M1396.53,2769.67 L1400.57,2996.09 L1397.66,2997.71 L1393.1,2994.98 L1394.3,3001.09 L1387.4,3017.8 L1387.87,3025.37 L1381.58,3025.86 L1381.35,3031.09 L1380.17,3024.28 L1374.44,3026.55 L1374.75,3072.58 L1086.98,3074.0 L1087.63,2768.15 L1396.53,2769.67 Z", "cx": 1240.56, "cy": 2919.54, "bbox_svg": [1086.98, 2768.15, 1400.57, 3074.0]}, {"fips": "18115", "name": "Ohio", "d": "M2474.86,2729.49 L2485.45,2741.16 L2505.4,2771.72 L2511.48,2791.33 L2508.1,2801.9 L2483.74,2826.82 L2474.6,2840.31 L2474.06,2848.28 L2480.27,2859.91 L2272.9,2857.48 L2278.85,2812.51 L2282.59,2811.79 L2287.65,2804.65 L2293.7,2805.91 L2288.12,2814.55 L2289.63,2823.73 L2301.24,2820.11 L2306.73,2825.21 L2317.1,2808.4 L2325.14,2812.54 L2326.63,2804.43 L2328.98,2803.53 L2330.91,2805.59 L2329.56,2810.75 L2334.69,2812.59 L2336.36,2802.23 L2344.98,2804.15 L2341.3,2793.49 L2348.98,2784.73 L2361.83,2785.92 L2365.9,2777.6 L2377.58,2785.33 L2382.12,2764.07 L2391.98,2765.6 L2393.09,2762.73 L2403.96,2768.34 L2408.25,2763.04 L2410.68,2766.03 L2415.92,2765.69 L2416.57,2761.52 L2423.82,2760.32 L2422.01,2755.41 L2424.24,2753.05 L2429.33,2755.98 L2438.11,2746.27 L2442.53,2746.9 L2447.75,2742.03 L2459.16,2747.48 L2474.86,2729.49 Z", "cx": 2407.33, "cy": 2810.62, "bbox_svg": [2272.9, 2729.49, 2511.48, 2859.91]}, {"fips": "18071", "name": "Jackson", "d": "M1748.31,2690.78 L1766.71,2692.22 L1769.31,2953.29 L1760.06,2971.44 L1762.21,2980.88 L1750.68,2984.32 L1742.59,2997.05 L1740.92,3008.97 L1737.79,3008.62 L1732.44,3015.63 L1733.82,3020.12 L1728.48,3022.4 L1729.21,3025.77 L1726.07,3024.3 L1720.97,3030.67 L1713.46,3029.93 L1710.77,3031.7 L1712.29,3034.47 L1704.51,3031.43 L1703.42,3035.79 L1701.2,3033.11 L1702.62,3030.07 L1698.46,3029.0 L1699.88,3025.82 L1696.52,3027.11 L1696.48,3031.05 L1693.51,3030.65 L1695.42,3024.64 L1688.84,3018.42 L1691.41,3016.88 L1691.83,3010.53 L1688.38,3006.78 L1682.03,3009.39 L1681.22,3003.29 L1679.23,3008.36 L1680.48,3013.36 L1676.61,3006.46 L1674.18,3007.16 L1676.07,3015.14 L1667.51,3010.22 L1668.0,3004.66 L1661.04,3005.26 L1660.79,2997.82 L1650.87,3007.08 L1648.7,3002.8 L1650.38,2999.74 L1641.38,2996.42 L1636.73,3005.55 L1630.27,3008.3 L1627.69,3006.5 L1627.74,3001.93 L1623.16,3002.36 L1625.19,2992.79 L1616.72,2993.62 L1613.86,2999.71 L1608.49,2999.34 L1602.94,3003.89 L1599.18,3002.7 L1600.48,2995.32 L1596.24,2992.96 L1591.74,2998.86 L1591.62,3005.2 L1587.63,2998.77 L1579.81,2998.94 L1564.87,2982.24 L1554.85,2986.36 L1550.02,2979.82 L1541.32,2976.84 L1536.13,2980.74 L1534.31,2986.05 L1535.66,2992.25 L1532.93,2994.96 L1522.65,2993.11 L1508.42,2998.25 L1486.22,2985.62 L1479.01,2987.51 L1470.82,2976.41 L1466.68,2983.82 L1461.54,2983.03 L1458.73,2978.06 L1454.02,2978.46 L1456.23,2984.82 L1459.89,2986.81 L1454.44,2986.45 L1451.42,2980.89 L1447.16,2980.9 L1447.32,2986.72 L1443.38,2989.64 L1442.95,2983.49 L1440.11,2981.07 L1427.14,2994.4 L1420.19,2992.4 L1414.86,2997.73 L1417.47,2990.69 L1414.29,2988.02 L1409.67,2991.31 L1409.17,2995.93 L1405.52,2993.72 L1400.57,2996.16 L1396.53,2769.67 L1367.8,2769.76 L1367.6,2711.82 L1550.36,2710.39 L1550.62,2724.84 L1719.21,2719.62 L1720.79,2717.65 L1717.11,2711.86 L1721.99,2710.18 L1724.83,2704.51 L1729.87,2705.92 L1726.99,2701.61 L1744.2,2697.6 L1748.31,2690.78 Z", "cx": 1582.97, "cy": 2853.94, "bbox_svg": [1367.6, 2690.78, 1769.31, 3035.79]}, {"fips": "18055", "name": "Greene", "d": "M658.37,2588.83 L1086.92,2595.04 L1086.91,2856.09 L815.83,2858.23 L743.53,2856.01 L743.51,2853.36 L658.1,2852.8 L658.37,2588.83 Z", "cx": 872.16, "cy": 2724.15, "bbox_svg": [658.1, 2588.83, 1086.92, 2858.23]}, {"fips": "18079", "name": "Jennings", "d": "M2042.43,2564.59 L2038.71,2847.67 L1967.08,2848.46 L1967.59,2877.89 L1939.64,2878.0 L1939.68,2907.11 L1911.12,2907.03 L1911.41,2936.22 L1897.04,2936.49 L1897.11,2943.04 L1889.99,2943.25 L1889.9,2936.6 L1854.93,2936.7 L1854.95,2945.13 L1846.77,2943.36 L1844.34,2946.22 L1843.68,2942.74 L1836.53,2941.86 L1836.2,2937.8 L1838.12,2937.06 L1834.41,2932.73 L1830.31,2932.39 L1828.4,2937.09 L1824.72,2937.54 L1816.75,2928.69 L1815.21,2930.56 L1818.85,2935.84 L1813.38,2940.64 L1800.62,2939.89 L1797.84,2941.77 L1798.52,2945.9 L1790.43,2945.35 L1787.59,2951.41 L1784.02,2947.63 L1781.11,2948.2 L1778.92,2953.44 L1769.31,2953.45 L1765.95,2631.8 L1944.31,2628.62 L2042.43,2564.59 Z", "cx": 1898.12, "cy": 2763.8, "bbox_svg": [1765.95, 2564.59, 2042.43, 2953.45]}, {"fips": "18153", "name": "Sullivan", "d": "M379.59,2501.29 L658.62,2501.59 L658.07,2859.09 L446.34,2858.34 L445.76,2854.62 L439.18,2854.74 L437.84,2841.57 L445.16,2837.95 L446.72,2827.41 L442.7,2821.23 L449.3,2812.73 L450.23,2806.61 L441.5,2798.52 L436.43,2787.95 L398.97,2771.52 L411.08,2772.49 L413.49,2768.97 L398.92,2760.91 L406.68,2740.3 L397.73,2720.33 L404.14,2710.58 L404.12,2703.48 L384.99,2680.09 L371.98,2678.58 L366.94,2673.88 L366.58,2669.74 L372.49,2662.04 L371.23,2656.87 L355.09,2654.24 L346.16,2655.94 L340.53,2650.75 L349.33,2639.72 L350.28,2633.11 L337.63,2624.2 L341.92,2612.01 L349.84,2604.46 L351.54,2593.99 L367.04,2590.58 L366.32,2575.22 L372.09,2578.42 L377.16,2576.76 L380.52,2569.05 L393.11,2561.58 L393.99,2556.13 L402.17,2545.6 L401.74,2530.39 L398.19,2517.28 L403.94,2514.92 L405.24,2506.72 L395.99,2504.2 L388.86,2513.25 L379.59,2501.29 Z", "cx": 524.97, "cy": 2671.71, "bbox_svg": [337.63, 2501.29, 658.62, 2859.09]}, {"fips": "18029", "name": "Dearborn", "d": "M2519.49,2455.45 L2519.16,2655.16 L2509.32,2660.28 L2486.91,2683.24 L2465.66,2694.78 L2459.63,2703.19 L2467.58,2721.52 L2474.73,2729.48 L2459.16,2747.48 L2447.75,2742.03 L2442.53,2746.9 L2438.11,2746.27 L2429.33,2755.98 L2424.24,2753.05 L2422.01,2755.41 L2423.82,2760.32 L2416.57,2761.52 L2415.92,2765.69 L2410.68,2766.03 L2408.25,2763.04 L2403.96,2768.34 L2393.09,2762.73 L2391.98,2765.6 L2382.12,2764.07 L2377.58,2785.33 L2365.9,2777.6 L2361.83,2785.92 L2348.98,2784.73 L2341.3,2793.49 L2344.98,2804.15 L2336.36,2802.23 L2334.69,2812.59 L2329.56,2810.75 L2330.91,2805.59 L2328.98,2803.53 L2326.63,2804.43 L2325.14,2812.54 L2317.1,2808.4 L2306.73,2825.21 L2301.24,2820.11 L2289.63,2823.73 L2287.91,2815.68 L2293.61,2807.43 L2292.45,2804.14 L2287.65,2804.65 L2282.59,2811.79 L2278.85,2812.51 L2330.21,2453.47 L2519.49,2455.45 Z", "cx": 2401.39, "cy": 2615.47, "bbox_svg": [2278.85, 2453.47, 2519.49, 2825.21]}, {"fips": "18137", "name": "Ripley", "d": "M2330.66,2450.6 L2276.2,2831.14 L2224.77,2832.09 L2224.97,2846.82 L2038.71,2847.67 L2042.43,2564.33 L2213.13,2452.04 L2330.66,2450.6 Z", "cx": 2179.08, "cy": 2657.05, "bbox_svg": [2038.71, 2450.6, 2330.66, 2847.67]}, {"fips": "18013", "name": "Brown", "d": "M1546.18,2416.53 L1550.37,2710.39 L1327.56,2712.22 L1325.71,2509.76 L1320.02,2509.58 L1318.82,2420.83 L1546.18,2416.53 Z", "cx": 1436.48, "cy": 2564.33, "bbox_svg": [1318.82, 2416.53, 1550.37, 2712.22]}, {"fips": "18105", "name": "Monroe", "d": "M1112.81,2405.08 L1120.4,2412.12 L1127.16,2412.81 L1127.11,2419.89 L1318.82,2420.83 L1320.02,2509.58 L1325.71,2509.76 L1327.56,2712.22 L1367.6,2711.86 L1367.8,2769.78 L1087.63,2768.15 L1084.88,2424.7 L1099.97,2431.4 L1102.05,2426.45 L1107.36,2429.75 L1106.29,2409.97 L1112.81,2405.08 Z", "cx": 1209.48, "cy": 2599.25, "bbox_svg": [1084.88, 2405.08, 1367.8, 2769.78]}, {"fips": "18005", "name": "Bartholomew", "d": "M1854.53,2410.64 L1852.83,2629.81 L1765.95,2631.8 L1766.69,2692.22 L1748.31,2690.78 L1744.2,2697.6 L1726.99,2701.61 L1729.87,2705.92 L1724.83,2704.51 L1721.99,2710.18 L1717.11,2711.86 L1720.79,2717.65 L1719.21,2719.62 L1550.62,2724.84 L1549.84,2563.48 L1546.18,2416.53 L1766.68,2410.49 L1854.53,2410.64 Z", "cx": 1691.05, "cy": 2554.78, "bbox_svg": [1546.18, 2410.49, 1854.53, 2724.84]}, {"fips": "18031", "name": "Decatur", "d": "M2151.93,2307.29 L2152.84,2492.34 L1944.31,2628.62 L1852.83,2629.93 L1854.53,2410.64 L1895.95,2410.47 L1896.94,2307.38 L2151.93,2307.29 Z", "cx": 1995.63, "cy": 2453.39, "bbox_svg": [1852.83, 2307.29, 2152.84, 2629.93]}, {"fips": "18119", "name": "Owen", "d": "M889.59,2287.76 L1126.09,2290.47 L1127.16,2412.81 L1120.61,2412.23 L1111.91,2405.04 L1106.42,2409.75 L1105.18,2415.31 L1108.36,2422.64 L1107.36,2429.75 L1102.05,2426.45 L1099.97,2431.4 L1084.88,2424.7 L1087.03,2595.04 L801.33,2592.45 L802.15,2418.06 L887.54,2418.59 L889.59,2287.76 Z", "cx": 968.24, "cy": 2448.07, "bbox_svg": [801.33, 2287.76, 1127.16, 2595.04]}, {"fips": "18047", "name": "Franklin", "d": "M2522.62,2237.78 L2519.53,2455.45 L2330.21,2453.47 L2330.66,2450.6 L2213.13,2452.04 L2152.84,2492.46 L2151.17,2235.2 L2363.39,2234.59 L2522.62,2237.78 Z", "cx": 2334.33, "cy": 2345.86, "bbox_svg": [2151.17, 2234.59, 2522.62, 2492.46]}, {"fips": "18021", "name": "Clay", "d": "M690.33,2153.61 L833.31,2155.85 L832.05,2287.08 L889.59,2287.76 L887.54,2418.59 L802.15,2418.06 L801.33,2592.49 L658.37,2588.83 L659.69,2240.05 L689.54,2240.81 L690.33,2153.61 Z", "cx": 754.53, "cy": 2367.68, "bbox_svg": [658.37, 2153.61, 889.59, 2592.49]}, {"fips": "18167", "name": "Vigo", "d": "M434.29,2153.37 L690.33,2153.61 L689.54,2240.81 L659.69,2240.05 L658.62,2501.59 L378.89,2501.29 L378.01,2497.4 L382.37,2488.06 L375.9,2483.75 L374.41,2477.46 L384.48,2463.0 L376.11,2454.15 L390.28,2427.25 L401.35,2419.17 L412.51,2421.78 L419.4,2418.78 L424.83,2407.46 L434.8,2412.69 L434.29,2153.37 Z", "cx": 543.7, "cy": 2330.19, "bbox_svg": [374.41, 2153.37, 690.33, 2501.59]}, {"fips": "18109", "name": "Morgan", "d": "M1419.53,2126.98 L1418.68,2418.84 L1254.63,2422.43 L1127.11,2419.89 L1126.09,2290.47 L1083.63,2290.63 L1083.56,2238.79 L1085.94,2239.31 L1087.28,2234.12 L1091.48,2230.73 L1094.72,2231.17 L1096.8,2227.16 L1095.17,2225.04 L1099.28,2225.01 L1108.84,2208.89 L1111.47,2210.88 L1110.04,2201.26 L1113.68,2194.95 L1109.38,2195.84 L1109.03,2190.72 L1105.74,2187.95 L1108.22,2186.02 L1105.08,2181.6 L1110.98,2166.29 L1107.2,2159.53 L1254.18,2159.88 L1253.89,2130.64 L1419.53,2126.98 Z", "cx": 1269.07, "cy": 2279.09, "bbox_svg": [1083.56, 2126.98, 1419.53, 2422.43]}, {"fips": "18081", "name": "Johnson", "d": "M1648.71,2122.28 L1648.91,2413.3 L1418.68,2418.9 L1419.53,2126.97 L1648.71,2122.28 Z", "cx": 1533.9, "cy": 2270.47, "bbox_svg": [1418.68, 2122.28, 1648.91, 2418.9]}, {"fips": "18145", "name": "Shelby", "d": "M1894.51,2062.21 L1897.15,2321.98 L1895.95,2410.47 L1648.91,2413.31 L1649.13,2063.53 L1894.51,2062.21 Z", "cx": 1772.43, "cy": 2237.66, "bbox_svg": [1648.91, 2062.21, 1897.15, 2413.31]}, {"fips": "18161", "name": "Union", "d": "M2523.38,2034.21 L2522.62,2237.78 L2352.82,2234.46 L2354.24,2031.4 L2523.38,2034.21 Z", "cx": 2438.3, "cy": 2134.53, "bbox_svg": [2352.82, 2031.4, 2523.38, 2237.78]}, {"fips": "18139", "name": "Rush", "d": "M2148.89,1973.09 L2151.94,2307.27 L1896.94,2307.38 L1894.11,1974.48 L2148.89,1973.09 Z", "cx": 2023.05, "cy": 2140.58, "bbox_svg": [1894.11, 1973.09, 2151.94, 2307.38]}, {"fips": "18041", "name": "Fayette", "d": "M2239.65,1973.42 L2238.43,2045.14 L2354.1,2045.9 L2352.82,2234.46 L2151.58,2235.2 L2148.89,1973.09 L2239.65,1973.42 Z", "cx": 2243.59, "cy": 2121.04, "bbox_svg": [2148.89, 1973.09, 2354.1, 2235.2]}, {"fips": "18133", "name": "Putnam", "d": "M835.97,1894.02 L1084.08,1895.82 L1083.63,2130.23 L1118.71,2130.55 L1116.18,2133.16 L1117.71,2142.83 L1114.08,2146.12 L1114.29,2150.43 L1109.56,2152.66 L1106.98,2160.08 L1110.98,2166.29 L1105.08,2181.6 L1108.22,2186.02 L1105.74,2187.95 L1109.03,2190.72 L1109.38,2195.84 L1113.68,2194.95 L1110.04,2201.26 L1111.47,2210.88 L1108.84,2208.89 L1099.28,2225.01 L1095.17,2225.04 L1096.8,2227.16 L1094.72,2231.17 L1091.48,2230.73 L1087.28,2234.12 L1085.94,2239.31 L1083.56,2238.79 L1083.62,2290.13 L832.05,2287.08 L835.97,1894.02 Z", "cx": 962.45, "cy": 2094.36, "bbox_svg": [832.05, 1894.02, 1118.71, 2290.13]}, {"fips": "18063", "name": "Hendricks", "d": "M1361.38,1836.48 L1361.45,1894.51 L1359.8,1894.54 L1361.2,2128.54 L1253.89,2130.64 L1254.18,2159.88 L1107.2,2159.53 L1117.71,2142.83 L1116.18,2133.16 L1118.71,2130.55 L1083.63,2130.23 L1084.08,1895.82 L1077.72,1895.83 L1077.59,1837.89 L1361.38,1836.48 Z", "cx": 1219.85, "cy": 1990.9, "bbox_svg": [1077.59, 1836.48, 1361.45, 2159.88]}, {"fips": "18097", "name": "Marion", "d": "M1659.63,1833.18 L1659.63,1890.85 L1647.38,1891.02 L1648.84,2122.23 L1361.2,2128.49 L1359.8,1894.54 L1361.45,1894.51 L1361.38,1836.48 L1659.63,1833.18 Z", "cx": 1505.32, "cy": 1979.28, "bbox_svg": [1359.8, 1833.18, 1659.63, 2128.49]}, {"fips": "18121", "name": "Parke", "d": "M520.42,1808.25 L773.46,1807.71 L772.94,1893.4 L835.97,1894.02 L833.31,2155.85 L549.49,2152.63 L550.23,2143.39 L542.41,2128.36 L542.38,2117.47 L539.19,2109.2 L540.17,2102.26 L545.02,2095.73 L543.08,2085.6 L550.15,2067.03 L547.02,2060.82 L551.66,2052.8 L547.68,2043.5 L553.39,2014.73 L550.86,1993.76 L555.74,1982.92 L555.51,1968.26 L547.7,1952.17 L546.98,1927.59 L560.46,1920.27 L565.87,1904.36 L571.49,1898.66 L552.57,1886.09 L552.2,1882.91 L560.83,1873.65 L552.33,1857.76 L527.3,1845.73 L525.8,1842.11 L531.99,1836.81 L531.39,1833.09 L519.4,1834.98 L512.27,1831.42 L509.68,1826.48 L518.44,1816.69 L520.42,1808.25 Z", "cx": 684.65, "cy": 1987.36, "bbox_svg": [509.68, 1807.71, 835.97, 2155.85]}, {"fips": "18059", "name": "Hancock", "d": "M1937.77,1814.92 L1937.32,1887.98 L1922.03,1887.78 L1921.96,1974.26 L1894.11,1974.48 L1893.95,2062.2 L1649.26,2063.52 L1647.38,1891.02 L1659.63,1890.85 L1659.63,1833.17 L1717.81,1831.72 L1717.69,1817.16 L1768.59,1815.99 L1937.77,1814.92 Z", "cx": 1786.16, "cy": 1937.51, "bbox_svg": [1647.38, 1814.92, 1937.77, 2063.52]}, {"fips": "18177", "name": "Wayne", "d": "M2526.15,1755.6 L2523.38,2034.19 L2354.24,2031.4 L2354.13,2045.9 L2238.43,2045.14 L2239.66,1972.27 L2210.55,1972.23 L2211.05,1887.11 L2226.22,1886.87 L2225.98,1756.17 L2463.06,1754.33 L2526.15,1755.6 Z", "cx": 2373.19, "cy": 1895.84, "bbox_svg": [2210.55, 1754.33, 2526.15, 2045.9]}, {"fips": "18065", "name": "Henry", "d": "M2215.9,1683.82 L2216.6,1756.24 L2225.98,1756.11 L2226.22,1886.87 L2211.05,1887.11 L2210.55,1972.22 L1921.96,1974.29 L1922.03,1887.78 L1937.32,1887.98 L1937.79,1683.37 L2215.9,1683.82 Z", "cx": 2075.8, "cy": 1829.4, "bbox_svg": [1921.96, 1683.37, 2226.22, 1974.29]}, {"fips": "18165", "name": "Vermillion", "d": "M466.35,1612.28 L466.39,1633.31 L530.93,1633.1 L530.23,1652.13 L525.4,1664.7 L526.71,1673.06 L522.42,1702.6 L511.75,1713.25 L517.37,1720.86 L510.0,1731.91 L508.71,1740.05 L510.41,1767.15 L514.53,1774.15 L514.66,1781.37 L511.67,1791.92 L505.04,1800.16 L511.99,1805.88 L518.6,1804.34 L520.49,1807.77 L518.44,1816.69 L510.4,1825.04 L510.26,1829.27 L519.91,1835.08 L531.39,1833.09 L531.99,1836.81 L525.8,1842.11 L527.3,1845.73 L552.33,1857.76 L560.83,1873.65 L552.2,1882.91 L552.57,1886.09 L571.49,1898.66 L565.87,1904.36 L560.46,1920.27 L546.98,1927.59 L547.7,1952.17 L555.51,1968.26 L555.74,1982.92 L550.86,1993.76 L553.39,2014.73 L547.68,2043.5 L551.66,2052.8 L547.02,2060.82 L550.15,2067.03 L543.08,2085.6 L545.02,2095.73 L540.17,2102.26 L539.19,2109.2 L542.38,2117.47 L542.41,2128.36 L550.23,2143.39 L549.49,2152.63 L434.28,2153.37 L434.85,1612.66 L466.35,1612.28 Z", "cx": 487.02, "cy": 1906.74, "bbox_svg": [434.28, 1612.28, 571.49, 2153.37]}, {"fips": "18011", "name": "Boone", "d": "M1425.74,1580.04 L1426.91,1834.6 L1077.59,1837.89 L1077.22,1582.12 L1280.11,1584.21 L1425.74,1580.04 Z", "cx": 1251.67, "cy": 1709.54, "bbox_svg": [1077.22, 1580.04, 1426.91, 1837.89]}, {"fips": "18107", "name": "Montgomery", "d": "M772.37,1546.03 L1077.32,1546.31 L1077.72,1895.83 L772.94,1893.4 L772.37,1546.03 Z", "cx": 925.24, "cy": 1720.38, "bbox_svg": [772.37, 1546.03, 1077.72, 1895.83]}, {"fips": "18057", "name": "Hamilton", "d": "M1718.18,1541.72 L1717.81,1831.72 L1426.91,1834.55 L1425.45,1544.84 L1718.18,1541.72 Z", "cx": 1572.11, "cy": 1688.06, "bbox_svg": [1425.45, 1541.72, 1718.18, 1834.55]}, {"fips": "18135", "name": "Randolph", "d": "M2531.61,1449.75 L2526.15,1755.6 L2216.6,1756.24 L2212.43,1454.05 L2528.87,1449.71 L2531.61,1449.75 Z", "cx": 2372.01, "cy": 1603.11, "bbox_svg": [2212.43, 1449.71, 2531.61, 1756.24]}, {"fips": "18045", "name": "Fountain", "d": "M763.2,1400.21 L772.53,1394.18 L773.99,1807.71 L520.42,1808.25 L518.6,1804.34 L511.99,1805.88 L505.17,1801.1 L512.03,1791.21 L514.85,1778.88 L510.41,1767.15 L508.71,1740.05 L510.0,1731.91 L517.37,1720.86 L511.75,1713.25 L522.42,1702.6 L526.71,1673.06 L525.4,1664.7 L530.23,1652.13 L532.18,1625.29 L529.98,1618.14 L510.11,1607.06 L506.17,1596.28 L519.93,1569.34 L532.91,1564.63 L541.25,1557.97 L567.9,1550.18 L576.05,1543.78 L578.53,1538.84 L586.42,1533.99 L589.75,1526.53 L597.85,1520.52 L601.44,1512.49 L616.46,1504.45 L627.57,1481.71 L651.58,1461.44 L655.02,1451.5 L699.58,1434.19 L711.18,1426.34 L725.1,1425.97 L740.93,1420.95 L762.08,1405.56 L763.2,1400.21 Z", "cx": 657.73, "cy": 1639.87, "bbox_svg": [505.17, 1394.18, 773.99, 1808.25]}, {"fips": "18095", "name": "Madison", "d": "M1717.88,1382.3 L1935.94,1381.16 L1938.3,1549.63 L1937.82,1814.92 L1717.7,1817.16 L1716.89,1626.7 L1719.44,1454.98 L1717.88,1382.3 Z", "cx": 1827.73, "cy": 1599.44, "bbox_svg": [1716.89, 1381.16, 1938.3, 1817.16]}, {"fips": "18035", "name": "Delaware", "d": "M2211.51,1381.54 L2215.94,1683.82 L1937.79,1683.37 L1935.94,1381.16 L2211.51,1381.54 Z", "cx": 2075.3, "cy": 1532.71, "bbox_svg": [1935.94, 1381.16, 2215.94, 1683.82]}, {"fips": "18159", "name": "Tipton", "d": "M1718.01,1353.78 L1718.18,1541.72 L1425.45,1544.84 L1425.4,1357.76 L1718.01,1353.78 Z", "cx": 1571.87, "cy": 1449.53, "bbox_svg": [1425.4, 1353.78, 1718.18, 1544.84]}, {"fips": "18023", "name": "Clinton", "d": "M1374.32,1329.0 L1374.3,1372.3 L1396.15,1372.33 L1396.23,1386.94 L1425.31,1387.01 L1425.74,1580.0 L1280.11,1584.21 L1077.22,1582.12 L1078.07,1328.55 L1374.32,1329.0 Z", "cx": 1246.7, "cy": 1458.94, "bbox_svg": [1077.22, 1328.55, 1425.74, 1584.21]}, {"fips": "18171", "name": "Warren", "d": "M439.28,1283.78 L772.04,1284.94 L772.54,1394.17 L768.67,1394.42 L763.2,1400.21 L762.08,1405.56 L740.93,1420.95 L725.1,1425.97 L711.18,1426.34 L699.58,1434.19 L655.02,1451.5 L651.58,1461.44 L627.57,1481.71 L616.46,1504.45 L601.44,1512.49 L597.85,1520.52 L589.75,1526.53 L586.42,1533.99 L578.53,1538.84 L576.05,1543.78 L567.9,1550.18 L541.25,1557.97 L532.91,1564.63 L520.68,1568.38 L506.17,1596.28 L511.58,1608.43 L530.65,1618.84 L530.93,1633.1 L466.39,1633.31 L466.35,1612.28 L434.85,1612.66 L439.28,1283.78 Z", "cx": 572.15, "cy": 1413.74, "bbox_svg": [434.85, 1283.78, 772.54, 1633.31]}, {"fips": "18157", "name": "Tippecanoe", "d": "M770.15,1197.77 L1077.53,1198.83 L1077.32,1546.31 L772.2,1546.02 L770.15,1197.77 Z", "cx": 924.24, "cy": 1372.02, "bbox_svg": [770.15, 1197.77, 1077.53, 1546.31]}, {"fips": "18067", "name": "Howard", "d": "M1716.84,1195.15 L1718.01,1353.78 L1425.4,1357.76 L1425.32,1387.01 L1396.23,1386.94 L1396.15,1372.33 L1374.3,1372.3 L1374.32,1328.96 L1323.28,1328.82 L1324.24,1199.31 L1716.84,1195.15 Z", "cx": 1522.35, "cy": 1277.02, "bbox_svg": [1323.28, 1195.15, 1718.01, 1387.01]}, {"fips": "18009", "name": "Blackford", "d": "M2226.07,1193.41 L2226.34,1281.25 L2221.96,1281.29 L2221.72,1381.5 L2039.09,1381.92 L2037.11,1193.74 L2226.07,1193.41 Z", "cx": 2130.99, "cy": 1286.93, "bbox_svg": [2037.11, 1193.41, 2226.34, 1381.92]}, {"fips": "18075", "name": "Jay", "d": "M2532.53,1189.56 L2531.61,1449.75 L2212.43,1454.05 L2211.51,1381.46 L2221.72,1381.5 L2221.96,1281.29 L2226.34,1281.25 L2226.07,1193.41 L2532.53,1189.56 Z", "cx": 2376.24, "cy": 1322.85, "bbox_svg": [2211.51, 1189.56, 2532.53, 1454.05]}, {"fips": "18053", "name": "Grant", "d": "M2035.5,1106.98 L2039.09,1381.68 L1717.88,1382.3 L1716.09,1109.23 L2035.5,1106.98 Z", "cx": 1877.3, "cy": 1245.17, "bbox_svg": [1716.09, 1106.98, 2039.09, 1382.3]}, {"fips": "18015", "name": "Carroll", "d": "M1040.15,1023.09 L1208.39,1025.26 L1208.38,1068.27 L1325.04,1068.23 L1323.28,1328.83 L1078.07,1328.55 L1077.53,1198.83 L1019.27,1198.66 L1016.91,1096.61 L1029.17,1096.15 L1031.15,1089.99 L1038.37,1086.73 L1041.27,1081.79 L1039.64,1078.24 L1034.18,1083.08 L1026.08,1080.93 L1036.41,1072.37 L1032.37,1071.02 L1031.43,1065.89 L1026.38,1060.2 L1029.63,1055.55 L1029.26,1048.83 L1037.57,1043.49 L1030.06,1038.99 L1029.88,1034.02 L1034.01,1025.87 L1040.15,1023.09 Z", "cx": 1178.83, "cy": 1177.56, "bbox_svg": [1016.91, 1023.09, 1325.04, 1328.83]}, {"fips": "18007", "name": "Benton", "d": "M439.03,1023.77 L769.03,1024.14 L771.38,1284.93 L438.6,1283.79 L439.03,1023.77 Z", "cx": 604.59, "cy": 1154.34, "bbox_svg": [438.6, 1023.77, 771.38, 1284.93]}, {"fips": "18017", "name": "Cass", "d": "M1482.47,851.24 L1485.14,1198.02 L1324.24,1199.31 L1325.04,1068.23 L1208.38,1068.27 L1208.39,1025.26 L1164.88,1024.93 L1165.1,849.79 L1482.47,851.24 Z", "cx": 1345.92, "cy": 998.78, "bbox_svg": [1164.88, 849.79, 1485.14, 1199.31]}, {"fips": "18181", "name": "White", "d": "M853.03,848.5 L1165.1,849.79 L1164.88,1024.91 L1037.24,1023.07 L1034.01,1025.87 L1029.48,1037.47 L1037.51,1043.81 L1029.26,1048.83 L1029.63,1055.55 L1026.37,1060.78 L1031.43,1065.89 L1032.37,1071.02 L1036.44,1072.18 L1026.08,1080.93 L1030.8,1083.65 L1036.68,1082.36 L1039.5,1078.26 L1041.51,1080.64 L1038.37,1086.73 L1030.72,1090.51 L1029.17,1096.15 L1016.91,1096.61 L1019.27,1198.63 L770.15,1197.77 L766.67,923.09 L853.65,922.66 L853.03,848.5 Z", "cx": 946.58, "cy": 1011.03, "bbox_svg": [766.67, 848.5, 1165.1, 1198.63]}, {"fips": "18179", "name": "Wells", "d": "M2323.91,842.85 L2328.12,1192.41 L2037.11,1193.74 L2035.5,1106.94 L2123.45,1106.26 L2122.43,843.59 L2323.91,842.85 Z", "cx": 2210.58, "cy": 1031.17, "bbox_svg": [2035.5, 842.85, 2328.12, 1193.74]}, {"fips": "18001", "name": "Adams", "d": "M2532.2,838.11 L2532.54,1188.47 L2328.12,1192.25 L2323.91,842.85 L2532.2,838.11 Z", "cx": 2429.23, "cy": 1014.87, "bbox_svg": [2323.91, 838.11, 2532.54, 1192.25]}, {"fips": "18103", "name": "Miami", "d": "M1653.21,761.46 L1658.53,1109.69 L1716.09,1108.98 L1716.85,1195.14 L1485.14,1198.02 L1484.74,1019.04 L1482.45,1017.06 L1482.54,764.6 L1653.21,761.46 Z", "cx": 1577.32, "cy": 991.21, "bbox_svg": [1482.45, 761.46, 1716.85, 1198.02]}, {"fips": "18069", "name": "Huntington", "d": "M2122.69,756.2 L2123.45,1106.26 L1889.84,1107.55 L1885.82,758.34 L2122.69,756.2 Z", "cx": 2005.49, "cy": 931.68, "bbox_svg": [1885.82, 756.2, 2123.45, 1107.55]}, {"fips": "18169", "name": "Wabash", "d": "M1854.85,714.34 L1855.55,758.85 L1885.82,758.43 L1889.84,1107.55 L1658.53,1109.69 L1653.86,717.82 L1854.85,714.34 Z", "cx": 1770.49, "cy": 914.85, "bbox_svg": [1653.86, 714.34, 1889.84, 1109.69]}, {"fips": "18131", "name": "Pulaski", "d": "M897.07,588.33 L1253.06,589.24 L1252.11,850.77 L896.61,848.27 L897.07,588.33 Z", "cx": 1074.9, "cy": 719.12, "bbox_svg": [896.61, 588.33, 1253.06, 850.77]}, {"fips": "18049", "name": "Fulton", "d": "M1552.42,587.79 L1553.67,675.78 L1597.85,674.54 L1597.67,718.79 L1653.86,717.83 L1654.02,761.48 L1482.54,764.6 L1482.11,851.23 L1252.11,850.77 L1253.06,589.24 L1552.42,587.79 Z", "cx": 1409.52, "cy": 713.6, "bbox_svg": [1252.11, 587.79, 1654.02, 851.23]}, {"fips": "18111", "name": "Newton", "d": "M631.39,543.38 L630.88,849.19 L636.82,849.16 L637.91,1024.08 L439.02,1023.77 L438.61,594.82 L491.25,590.1 L500.0,586.35 L524.47,598.48 L540.3,598.19 L550.61,588.15 L577.12,578.24 L588.71,577.65 L623.72,545.54 L631.39,543.38 Z", "cx": 537.74, "cy": 804.89, "bbox_svg": [438.61, 543.38, 637.91, 1024.08]}, {"fips": "18073", "name": "Jasper", "d": "M749.16,474.4 L797.37,491.19 L861.36,539.13 L867.84,540.79 L888.46,531.87 L897.46,523.39 L896.61,848.26 L853.03,848.5 L853.65,922.66 L766.67,923.09 L767.76,1024.14 L637.91,1024.09 L636.82,849.16 L630.88,849.19 L631.37,542.0 L669.59,525.04 L694.97,495.61 L742.35,474.47 L749.16,474.4 Z", "cx": 754.14, "cy": 737.74, "bbox_svg": [630.88, 474.4, 897.46, 1024.14]}, {"fips": "18003", "name": "Allen", "d": "M2531.69,489.74 L2532.2,838.1 L2245.18,844.22 L2122.43,843.59 L2120.64,581.61 L2142.57,581.71 L2144.14,496.52 L2531.69,489.74 Z", "cx": 2329.37, "cy": 669.31, "bbox_svg": [2120.64, 489.74, 2532.2, 844.22]}, {"fips": "18183", "name": "Whitley", "d": "M1968.47,465.44 L1967.71,494.33 L2144.14,496.52 L2142.57,581.71 L2120.64,581.61 L2122.7,755.43 L1855.55,758.85 L1852.88,582.29 L1879.13,582.18 L1879.59,465.9 L1968.47,465.44 Z", "cx": 1992.64, "cy": 621.31, "bbox_svg": [1852.88, 465.44, 2144.14, 758.85]}, {"fips": "18149", "name": "Starke", "d": "M1253.35,327.68 L1253.09,589.24 L897.07,588.33 L897.46,523.39 L904.39,515.49 L943.42,495.92 L960.82,493.45 L966.66,488.56 L986.38,487.19 L1010.26,475.13 L1027.21,452.88 L1043.43,438.75 L1047.28,421.85 L1054.8,408.92 L1058.09,394.98 L1067.73,379.96 L1074.59,357.31 L1096.3,346.78 L1118.03,327.99 L1253.35,327.68 Z", "cx": 1114.12, "cy": 479.88, "bbox_svg": [897.07, 327.68, 1253.35, 589.24]}, {"fips": "18085", "name": "Kosciusko", "d": "M1878.38,323.65 L1879.13,582.18 L1852.88,582.29 L1854.79,714.34 L1597.67,718.79 L1597.85,674.54 L1553.67,675.78 L1552.42,587.78 L1570.37,587.53 L1566.68,325.17 L1878.38,323.65 Z", "cx": 1719.08, "cy": 516.2, "bbox_svg": [1552.42, 323.65, 1879.13, 718.79]}, {"fips": "18099", "name": "Marshall", "d": "M1566.35,281.66 L1570.37,587.53 L1253.09,589.24 L1253.25,284.23 L1566.35,281.66 Z", "cx": 1410.84, "cy": 436.0, "bbox_svg": [1253.09, 281.66, 1570.37, 589.24]}, {"fips": "18113", "name": "Noble", "d": "M2231.53,234.13 L2232.84,496.46 L1967.71,494.33 L1968.47,465.44 L1879.59,465.9 L1877.41,237.32 L2231.53,234.13 Z", "cx": 2059.79, "cy": 362.1, "bbox_svg": [1877.41, 234.13, 2232.84, 496.46]}, {"fips": "18033", "name": "DeKalb", "d": "M2530.82,230.35 L2531.68,489.72 L2232.84,496.46 L2231.53,234.13 L2530.82,230.35 Z", "cx": 2381.44, "cy": 362.64, "bbox_svg": [2231.53, 230.35, 2531.68, 496.46]}, {"fips": "18127", "name": "Porter", "d": "M675.25,518.5 L671.31,0.0 L895.12,0.2 L897.43,523.52 L892.33,529.38 L867.84,540.79 L861.36,539.13 L797.37,491.19 L748.83,474.36 L742.35,474.47 L694.97,495.61 L675.25,518.5 Z", "cx": 786.71, "cy": 251.67, "bbox_svg": [671.31, 0.0, 897.43, 540.79]}, {"fips": "18089", "name": "Lake", "d": "M438.61,594.82 L440.55,0.56 L671.31,0.0 L675.35,500.06 L675.25,518.5 L669.59,525.04 L623.87,545.43 L588.71,577.65 L577.12,578.24 L550.61,588.15 L540.3,598.19 L524.47,598.48 L500.0,586.35 L491.25,590.1 L438.61,594.82 Z", "cx": 554.01, "cy": 288.74, "bbox_svg": [438.61, 0.0, 675.35, 598.48]}, {"fips": "18091", "name": "LaPorte", "d": "M1209.08,1.03 L1207.19,110.33 L1237.4,111.19 L1238.32,182.8 L1238.13,190.05 L1229.22,199.53 L1227.37,239.29 L1208.72,240.91 L1208.79,327.83 L1118.03,327.99 L1096.3,346.78 L1087.63,349.07 L1073.39,358.56 L1067.73,379.96 L1058.09,394.98 L1054.8,408.92 L1047.28,421.85 L1043.43,438.75 L1027.21,452.88 L1010.26,475.13 L986.38,487.19 L966.66,488.56 L960.82,493.45 L943.42,495.92 L904.39,515.49 L897.43,523.42 L895.12,0.2 L1209.08,1.03 Z", "cx": 1041.32, "cy": 211.65, "bbox_svg": [895.12, 0.2, 1238.32, 523.42]}, {"fips": "18141", "name": "St. Joseph", "d": "M1563.96,0.18 L1566.35,281.62 L1253.25,284.23 L1253.35,327.68 L1208.79,327.79 L1208.72,240.91 L1227.37,239.29 L1229.22,199.53 L1238.13,190.05 L1238.32,182.8 L1237.4,111.19 L1207.19,110.33 L1209.08,1.03 L1563.96,0.18 Z", "cx": 1389.12, "cy": 144.22, "bbox_svg": [1207.19, 0.18, 1566.35, 327.79]}, {"fips": "18039", "name": "Elkhart", "d": "M1873.45,1.65 L1878.38,323.65 L1566.47,325.17 L1563.96,0.18 L1873.45,1.65 Z", "cx": 1720.33, "cy": 162.87, "bbox_svg": [1563.96, 0.18, 1878.38, 325.17]}, {"fips": "18087", "name": "LaGrange", "d": "M2229.56,1.09 L2231.53,234.13 L1877.41,237.32 L1873.45,1.6 L2229.56,1.09 Z", "cx": 2052.65, "cy": 118.43, "bbox_svg": [1873.45, 1.09, 2231.53, 237.32]}, {"fips": "18151", "name": "Steuben", "d": "M2529.85,0.52 L2530.82,230.32 L2231.53,234.13 L2229.56,1.04 L2529.85,0.52 Z", "cx": 2380.08, "cy": 116.44, "bbox_svg": [2229.56, 0.52, 2530.82, 234.13]}];
+const VIEWBOX = [0, 0, 2546.31, 3988.97];
+
+/* ===================== derived state (do not edit) ===================== */
+
+const ELKHART = "Elkhart";
+const metaByName = {};
+const metaByFips = {};
+COUNTY_META.forEach(m => {
+  metaByName[m.County] = m;
+  metaByFips[m.FIPS] = m;
+});
+
+const pathByFips = {};
+COUNTY_PATHS.forEach(p => pathByFips[p.fips] = p);
+
+/** Build incremental (daily new) history by differencing consecutive cumulative snapshots.
+ *  First day: incremental = cumulative (all cases reported up to that date).
+ *  Later days: max(0, current_cumulative - previous_cumulative) per county.
+ *  Automatically updates whenever CASES_HISTORY is extended. */
+function computeIncrementalHistory(cumHistory) {
+  const inc = [];
+  for (let i = 0; i < cumHistory.length; i++) {
+    const curr = cumHistory[i];
+    const prevCases = i === 0 ? {} : cumHistory[i - 1].cases;
+    const cases = {};
+    const names = new Set([
+      ...Object.keys(curr.cases || {}),
+      ...Object.keys(prevCases)
+    ]);
+    names.forEach(name => {
+      const diff = (curr.cases[name] || 0) - (prevCases[name] || 0);
+      if (diff > 0) cases[name] = diff;
+    });
+    inc.push({
+      date: curr.date,
+      label: curr.label,
+      cases
+    });
+  }
+  return inc;
+}
+
+const INCREMENTAL_HISTORY = computeIncrementalHistory(CASES_HISTORY);
+
+function buildSnapshot(histEntry) {
+  return COUNTY_META.map(m => {
+    const cases = histEntry.cases[m.County] || 0;
+    const perCapita = m.Population > 0 ? Math.round((cases / m.Population) * 100000 * 10) / 10 : 0;
+    return {
+      County: m.County,
+      Population: m.Population,
+      Cases: cases,
+      PerCapita: perCapita,
+      FIPS: m.FIPS,
+      BBox: m.BBox
+    };
+  });
+}
+
+let dataMode = "cumulative"; // "cumulative" | "incremental"
+let currentMetric = "percapita";
+let chartMetric = "cases";
+let selectedFips = null;
+let compareCounties = new Set([ELKHART]); // always include Elkhart
+let trendChart = null;
+
+let activeHistory = CASES_HISTORY;
+let latestHist = activeHistory[activeHistory.length - 1];
+let COUNTY_DATA = buildSnapshot(latestHist);
+let dataByFips = {};
+COUNTY_DATA.forEach(d => dataByFips[d.FIPS] = d);
+
+function refreshActiveData() {
+  activeHistory = dataMode === "cumulative" ? CASES_HISTORY : INCREMENTAL_HISTORY;
+  latestHist = activeHistory[activeHistory.length - 1];
+  COUNTY_DATA = buildSnapshot(latestHist);
+  dataByFips = {};
+  COUNTY_DATA.forEach(d => dataByFips[d.FIPS] = d);
+  document.getElementById('dataAsOf').textContent = latestHist.label + " (" + latestHist.date + ")";
+}
+
+function modeLabel() {
+  return dataMode === "cumulative" ? "Cumulative" : "Daily New";
+}
+function casesWord() {
+  return dataMode === "cumulative" ? "Cases" : "New cases";
+}
+function casesWordShort() {
+  return dataMode === "cumulative" ? "Cases" : "New";
+}
+
+const COMPARE_COLORS = [
+  "#2B6CB0", // Elkhart blue
+  "#C4622A", "#0F4F45", "#7B2D8E", "#B45309",
+  "#1D4ED8", "#BE123C", "#0F766E", "#A16207", "#4C1D95"
+];
+
+/* ---------- KPIs ---------- */
+function renderKPIs() {
+  const totalCases = COUNTY_DATA.reduce((s,d)=>s+d.Cases,0);
+  const affectedCounties = COUNTY_DATA.filter(d=>d.Cases>0).length;
+  const topRateCounty = [...COUNTY_DATA].sort((a,b)=>b.PerCapita-a.PerCapita)[0];
+  const topCaseCounty = [...COUNTY_DATA].sort((a,b)=>b.Cases-a.Cases)[0];
+  const modeTag = modeLabel();
+
+  document.getElementById('kpiRow').innerHTML = `
+    <div class="kpi">
+      <div class="kpi-label">Statewide ${casesWord()}</div>
+      <div class="kpi-value">${totalCases.toLocaleString()}</div>
+      <div class="kpi-sub">${modeTag} · as of ${latestHist.label} · 92 counties</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-label">Counties Reporting</div>
+      <div class="kpi-value">${affectedCounties}</div>
+      <div class="kpi-sub">out of 92 counties (${modeTag.toLowerCase()})</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-label">Highest Rate</div>
+      <div class="kpi-value">${topRateCounty.County}</div>
+      <div class="kpi-sub">${topRateCounty.PerCapita} per 100k</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-label">Most ${casesWordShort()}</div>
+      <div class="kpi-value">${topCaseCounty.County}</div>
+      <div class="kpi-sub">${topCaseCounty.Cases} ${casesWord().toLowerCase()} · pop. ${topCaseCounty.Population.toLocaleString()}</div>
+    </div>
+  `;
+
+  const byCasesRank = [...COUNTY_DATA].sort((a,b)=>b.Cases-a.Cases);
+  const byPerCapitaRank = [...COUNTY_DATA].sort((a,b)=>b.PerCapita-a.PerCapita);
+  const elkhartData = COUNTY_DATA.find(d => d.County === ELKHART);
+  const elkhartCaseRank = byCasesRank.findIndex(d => d.County === ELKHART) + 1;
+  const elkhartRateRank = byPerCapitaRank.findIndex(d => d.County === ELKHART) + 1;
+
+  document.getElementById('elkhartKpiRow').innerHTML = `
+    <div class="kpi-elkhart">
+      <div class="kpi-label">Elkhart County — ${casesWord()}</div>
+      <div class="kpi-value">${elkhartData.Cases.toLocaleString()}<span class="rank-badge">Rank #${elkhartCaseRank}</span></div>
+      <div class="kpi-sub">of ${totalCases.toLocaleString()} statewide · population ${elkhartData.Population.toLocaleString()}</div>
+    </div>
+    <div class="kpi-elkhart">
+      <div class="kpi-label">Elkhart County — Per 100,000</div>
+      <div class="kpi-value">${elkhartData.PerCapita}<span class="rank-badge">Rank #${elkhartRateRank}</span></div>
+      <div class="kpi-sub">${casesWord().toLowerCase()} per 100k population</div>
+    </div>
+  `;
+}
+
+/* ---------- Color scale ---------- */
+const COLOR_STOPS = [
+  [0.00, [234, 243, 240]],
+  [0.25, [191, 221, 211]],
+  [0.50, [111, 174, 155]],
+  [0.75, [46, 125, 104]],
+  [1.00, [15, 79, 69]]
+];
+function lerp(a,b,t){ return a + (b-a)*t; }
+function colorForT(t){
+  t = Math.max(0, Math.min(1, t));
+  for (let i=0; i<COLOR_STOPS.length-1; i++){
+    const [t0, c0] = COLOR_STOPS[i];
+    const [t1, c1] = COLOR_STOPS[i+1];
+    if (t >= t0 && t <= t1){
+      const localT = (t - t0) / (t1 - t0 || 1);
+      const r = Math.round(lerp(c0[0], c1[0], localT));
+      const g = Math.round(lerp(c0[1], c1[1], localT));
+      const b = Math.round(lerp(c0[2], c1[2], localT));
+      return `rgb(${r},${g},${b})`;
+    }
+  }
+  return `rgb(${COLOR_STOPS[COLOR_STOPS.length-1][1].join(',')})`;
+}
+
+function metricValue(d, metric){ return metric === 'cases' ? d.Cases : d.PerCapita; }
+
+function getRange(metric){
+  const vals = COUNTY_DATA.map(d => metricValue(d, metric));
+  return [Math.min(...vals), Math.max(...vals)];
+}
+
+/* ---------- Build SVG map ---------- */
+const svg = document.getElementById('mapSvg');
+const tooltip = document.getElementById('tooltip');
+const mapWrap = document.querySelector('.map-wrap');
+
+const svgNS = "http://www.w3.org/2000/svg";
+const countyGroup = document.createElementNS(svgNS, 'g');
+countyGroup.setAttribute('id', 'countyGroup');
+svg.appendChild(countyGroup);
+
+const highlightGroup = document.createElementNS(svgNS, 'g');
+highlightGroup.setAttribute('id', 'highlightGroup');
+svg.appendChild(highlightGroup);
+
+COUNTY_PATHS.forEach(p => {
+  const el = document.createElementNS(svgNS, 'path');
+  el.setAttribute('d', p.d);
+  el.setAttribute('class', 'county');
+  el.setAttribute('data-fips', p.fips);
+  el.addEventListener('mousemove', (e) => showTooltip(e, p.fips));
+  el.addEventListener('mouseleave', hideTooltip);
+  el.addEventListener('click', () => selectCounty(p.fips));
+  countyGroup.appendChild(el);
+});
+
+function showTooltip(evt, fips){
+  const d = dataByFips[fips];
+  if (!d) return;
+  tooltip.innerHTML = `<b>${d.County}</b><br>` +
+    `<span class="tt-label">Population:</span> ${d.Population.toLocaleString()}<br>` +
+    `<span class="tt-label">${casesWord()}:</span> ${d.Cases}<br>` +
+    `<span class="tt-label">Per 100k:</span> ${d.PerCapita}`;
+  const rect = mapWrap.getBoundingClientRect();
+  const x = evt.clientX - rect.left;
+  const y = evt.clientY - rect.top;
+  tooltip.style.left = x + 'px';
+  tooltip.style.top = y + 'px';
+  tooltip.style.opacity = '1';
+}
+function hideTooltip(){ tooltip.style.opacity = '0'; }
+
+function paintMap(){
+  const [minV, maxV] = getRange(currentMetric);
+  const span = (maxV - minV) || 1;
+  document.getElementById('legendMin').textContent = currentMetric === 'cases' ? minV : minV.toFixed(1);
+  document.getElementById('legendMax').textContent = currentMetric === 'cases' ? maxV : maxV.toFixed(1);
+  document.getElementById('mapPanelTitle').textContent = `County Map — ${modeLabel()}`;
+  document.getElementById('metricLabel').textContent =
+    currentMetric === 'cases'
+      ? casesWord()
+      : (dataMode === 'cumulative' ? 'Cases per 100,000 population' : 'New cases per 100,000 population');
+
+  countyGroup.querySelectorAll('path.county').forEach(el => {
+    const fips = el.getAttribute('data-fips');
+    const d = dataByFips[fips];
+    const v = metricValue(d, currentMetric);
+    const t = (v - minV) / span;
+    el.setAttribute('fill', colorForT(t));
+  });
+}
+
+function paintHighlight(){
+  highlightGroup.innerHTML = '';
+  if (!selectedFips) return;
+  const p = pathByFips[selectedFips];
+  if (!p) return;
+  const el = document.createElementNS(svgNS, 'path');
+  el.setAttribute('d', p.d);
+  el.setAttribute('class', 'highlight');
+  highlightGroup.appendChild(el);
+}
+
+function zoomToCounty(fips){
+  const p = pathByFips[fips];
+  if (!p) return;
+  const [x0, y0, x1, y1] = p.bbox_svg;
+  const w = x1 - x0, h = y1 - y0;
+  const padX = Math.max(w * 0.45, 20);
+  const padY = Math.max(h * 0.45, 20);
+  const vx = x0 - padX, vy = y0 - padY;
+  const vw = w + padX*2, vh = h + padY*2;
+  svg.setAttribute('viewBox', `${vx} ${vy} ${vw} ${vh}`);
+}
+
+function resetZoomView(){
+  svg.setAttribute('viewBox', `0 0 ${VIEWBOX[2]} ${VIEWBOX[3]}`);
+}
+
+document.getElementById('resetZoom').addEventListener('click', () => {
+  selectedFips = null;
+  paintHighlight();
+  document.querySelectorAll('tr.rank-row.selected').forEach(r=>r.classList.remove('selected'));
+  resetZoomView();
+});
+
+document.querySelectorAll('#metricToggle .toggle-btn').forEach(btn=>{
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('#metricToggle .toggle-btn').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    currentMetric = btn.dataset.metric;
+    paintMap();
+  });
+});
+
+document.querySelectorAll('#modeToggle .toggle-btn').forEach(btn=>{
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('#modeToggle .toggle-btn').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    dataMode = btn.dataset.mode;
+    applyDataMode();
+  });
+});
+
+document.querySelectorAll('.tab').forEach(tab=>{
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(c=>c.classList.remove('active'));
+    tab.classList.add('active');
+    document.getElementById('tab-' + tab.dataset.tab).classList.add('active');
+  });
+});
+
+function selectCounty(fips){
+  const d = dataByFips[fips];
+  if (!d) return;
+
+  selectedFips = (selectedFips === fips) ? null : fips;
+  document.querySelectorAll('tr.rank-row').forEach(r=>{
+    r.classList.toggle('selected', r.dataset.fips === selectedFips);
+  });
+  paintHighlight();
+  if (selectedFips) zoomToCounty(selectedFips); else resetZoomView();
+
+  // Toggle comparison (Elkhart always stays)
+  if (d.County !== ELKHART) {
+    if (compareCounties.has(d.County)) {
+      compareCounties.delete(d.County);
+    } else {
+      compareCounties.add(d.County);
+    }
+    updateCompareChips();
+    updateTrendChart();
+  }
+}
+
+function renderRankTable(tbodyId, sortedData, columns){
+  const tbody = document.getElementById(tbodyId);
+  tbody.innerHTML = sortedData.slice(0,10).map((d, i) => `
+    <tr class="rank-row" data-fips="${d.FIPS}">
+      <td><span class="rank-num">${i+1}</span><span class="county-name">${d.County}</span></td>
+      ${columns(d)}
+    </tr>
+  `).join('');
+  tbody.querySelectorAll('tr.rank-row').forEach(row=>{
+    row.addEventListener('click', () => selectCounty(row.dataset.fips));
+  });
+}
+
+function renderRankings() {
+  const byCases = [...COUNTY_DATA].sort((a,b)=>b.Cases-a.Cases);
+  const byPerCapita = [...COUNTY_DATA].sort((a,b)=>b.PerCapita-a.PerCapita);
+
+  document.getElementById('tabLabelCases').textContent = `Top 10 by ${casesWord()}`;
+  document.getElementById('tabLabelPerCapita').textContent = `Top 10 per 100k`;
+  document.getElementById('thCases').textContent = casesWord();
+  document.getElementById('thPerCases').textContent = casesWord();
+  document.getElementById('thPerCapita').textContent = 'Per 100k';
+
+  renderRankTable('rankBodyCases', byCases, d => `
+    <td class="num">${d.Population.toLocaleString()}</td>
+    <td class="num">${d.Cases}</td>
+  `);
+
+  renderRankTable('rankBodyPerCapita', byPerCapita, d => `
+    <td class="num">${d.Cases}</td>
+    <td class="num">${d.PerCapita}</td>
+  `);
+
+  // restore selection highlight if any
+  if (selectedFips) {
+    document.querySelectorAll('tr.rank-row').forEach(r => {
+      r.classList.toggle('selected', r.dataset.fips === selectedFips);
+    });
+  }
+}
+
+/* ---------- Trend chart ---------- */
+function seriesForCounty(countyName) {
+  const meta = metaByName[countyName];
+  return activeHistory.map(h => {
+    const c = h.cases[countyName] || 0;
+    if (chartMetric === 'cases') return c;
+    return meta && meta.Population > 0
+      ? Math.round((c / meta.Population) * 100000 * 10) / 10
+      : 0;
+  });
+}
+
+function updateCompareChips() {
+  const el = document.getElementById('compareChips');
+  const ordered = [ELKHART, ...[...compareCounties].filter(c => c !== ELKHART).sort()];
+  el.innerHTML = ordered.map((name, i) => {
+    const color = COMPARE_COLORS[i % COMPARE_COLORS.length];
+    const isElk = name === ELKHART;
+    return `<span class="chip ${isElk ? 'elkhart' : ''}" style="border-color:${color};color:${color}">
+      <span style="width:8px;height:8px;border-radius:50%;background:${color};display:inline-block"></span>
+      ${name}
+      ${isElk ? '' : `<span class="chip-x" data-name="${name}" title="Remove">&times;</span>`}
+    </span>`;
+  }).join('') + `<span class="chip-hint">Click map/list to add counties</span>`;
+
+  el.querySelectorAll('.chip-x').forEach(x => {
+    x.addEventListener('click', (e) => {
+      e.stopPropagation();
+      compareCounties.delete(x.dataset.name);
+      updateCompareChips();
+      updateTrendChart();
+    });
+  });
+}
+
+function updateTrendChart() {
+  const labels = activeHistory.map(h => h.label);
+  const ordered = [ELKHART, ...[...compareCounties].filter(c => c !== ELKHART).sort()];
+  const datasets = ordered.map((name, i) => ({
+    label: name,
+    data: seriesForCounty(name),
+    borderColor: COMPARE_COLORS[i % COMPARE_COLORS.length],
+    backgroundColor: COMPARE_COLORS[i % COMPARE_COLORS.length] + '33',
+    tension: 0.25,
+    pointRadius: 5,
+    pointHoverRadius: 7,
+    borderWidth: name === ELKHART ? 3 : 2,
+    fill: false
+  }));
+
+  const yTitle = chartMetric === 'cases'
+    ? casesWord()
+    : (dataMode === 'cumulative' ? 'Cases per 100,000' : 'New cases per 100,000');
+
+  document.getElementById('chartPanelTitle').textContent =
+    `Case Trend — Elkhart vs Selected Counties (${modeLabel()})`;
+  document.getElementById('chartSubNote').textContent =
+    dataMode === 'cumulative'
+      ? 'Elkhart is always shown. Click any county on the map or ranking list to add/remove it for comparison. Chart shows cumulative totals.'
+      : 'Elkhart is always shown. Click any county on the map or ranking list to add/remove it for comparison. Chart shows daily new (incremental) cases.';
+
+  if (trendChart) {
+    trendChart.data.labels = labels;
+    trendChart.data.datasets = datasets;
+    trendChart.options.scales.y.title.text = yTitle;
+    trendChart.update();
+    return;
+  }
+
+  const ctx = document.getElementById('trendChart').getContext('2d');
+  trendChart = new Chart(ctx, {
+    type: 'line',
+    data: { labels, datasets },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { display: true, position: 'bottom', labels: { boxWidth: 12, font: { size: 12 } } },
+        tooltip: {
+          callbacks: {
+            label: (ctx) => `${ctx.dataset.label}: ${ctx.parsed.y}${chartMetric === 'percapita' ? ' per 100k' : ''}`
+          }
+        }
+      },
+      scales: {
+        x: {
+          title: { display: true, text: 'Report date', font: { size: 12 } },
+          grid: { color: '#E1DFD6' }
+        },
+        y: {
+          beginAtZero: true,
+          title: { display: true, text: yTitle, font: { size: 12 } },
+          grid: { color: '#E1DFD6' }
+        }
+      }
+    }
+  });
+}
+
+document.querySelectorAll('#chartMetricToggle .toggle-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('#chartMetricToggle .toggle-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    chartMetric = btn.dataset.chartMetric;
+    updateTrendChart();
+  });
+});
+
+document.getElementById('resetTrendBtn').addEventListener('click', () => {
+  compareCounties = new Set([ELKHART]);
+  selectedFips = null;
+  paintHighlight();
+  document.querySelectorAll('tr.rank-row.selected').forEach(r => r.classList.remove('selected'));
+  resetZoomView();
+  updateCompareChips();
+  updateTrendChart();
+});
+
+/** Rebuild all views after mode change or when CASES_HISTORY is updated. */
+function applyDataMode() {
+  refreshActiveData();
+  renderKPIs();
+  renderRankings();
+  paintMap();
+  paintHighlight();
+  updateCompareChips();
+  updateTrendChart();
+
+  const note = document.getElementById('footerNote');
+  if (note) {
+    note.textContent = dataMode === 'cumulative'
+      ? 'Allen and Marion post high raw case counts largely because of their large populations. Smaller counties like Steuben, Noble, DeKalb, and Harrison show much higher rates per capita, suggesting possible localized exposure clusters. Elkhart is highlighted below for ongoing local monitoring.'
+      : 'Daily new (incremental) cases highlight recent activity. Large day-over-day increases in smaller counties can indicate localized clusters. Elkhart is highlighted for ongoing local monitoring.';
+  }
+}
+
+// Initial render (Cumulative by default). Adding a new object to CASES_HISTORY
+// and reloading the page is enough — incremental history, map, KPIs, rankings,
+// and trend all recompute automatically.
+applyDataMode();
+</script>
+
+</body>
+</html>
